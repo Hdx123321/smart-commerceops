@@ -46,6 +46,22 @@ Use `smart-commerceops` as the Git repository root.
    `frontend`, `backend`, `integration`, `contract-change`, `ready-for-review`, `blocked`
 7. Merge to `main` only from a reviewed and working `integration`.
 
+## Sync Protocol
+
+- Codex is the integration owner and must notify Claude after any backend, contract, container, CI, or environment change that affects frontend work.
+- Claude must notify Codex after any frontend change that introduces a new backend expectation, route dependency, payload assumption, or auth behavior.
+- High-priority sync events:
+  - endpoint or payload changes
+  - auth or token behavior changes
+  - port, URL, or CORS changes
+  - Docker or environment variable changes
+  - branch or GitHub workflow changes
+- The sync message must include:
+  - what changed
+  - what file or endpoint is affected
+  - what Claude should stop assuming
+  - how to validate the new behavior
+
 ## Minimum Verification
 
 - Frontend changes:
