@@ -1,0 +1,127 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-commerceops}
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./infra/mysql/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-pcommerceops"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "6379:6379"
+
+  identity-service:
+    build:
+      context: ./backend
+      dockerfile: identity-service/Dockerfile
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/identity_db?useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-commerceops}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "8092:8092"
+
+  catalog-service:
+    build:
+      context: ./backend
+      dockerfile: catalog-service/Dockerfile
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/catalog_db?useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-commerceops}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "8093:8093"
+
+  order-service:
+    build:
+      context: ./backend
+      dockerfile: order-service/Dockerfile
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/order_db?useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-commerceops}
+      CATALOG_SERVICE_URL: http://catalog-service:8093
+    depends_on:
+      mysql:
+        condition: service_healthy
+      catalog-service:
+        condition: service_started
+    ports:
+      - "8094:8094"
+
+  analytics-service:
+    build:
+      context: ./backend
+      dockerfile: analytics-service/Dockerfile
+    environment:
+      CATALOG_SERVICE_URL: http://catalog-service:8093
+      ORDER_SERVICE_URL: http://order-service:8094
+    depends_on:
+      catalog-service:
+        condition: service_started
+      order-service:
+        condition: service_started
+    ports:
+      - "8095:8095"
+
+  gateway-service:
+    build:
+      context: ./backend
+      dockerfile: gateway-service/Dockerfile
+    environment:
+      IDENTITY_SERVICE_URL: http://identity-service:8092
+      CATALOG_SERVICE_URL: http://catalog-service:8093
+      ORDER_SERVICE_URL: http://order-service:8094
+      ANALYTICS_SERVICE_URL: http://analytics-service:8095
+      CORS_ALLOWED_ORIGINS: http://localhost:5173,http://localhost:3000
+    depends_on:
+      - identity-service
+      - catalog-service
+      - order-service
+      - analytics-service
+    ports:
+      - "8090:8090"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: http://localhost:8090
+    depends_on:
+      - gateway-service
+    ports:
+      - "3000:80"
+
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+
+volumes:
+  mysql-data:
+  grafana-data:

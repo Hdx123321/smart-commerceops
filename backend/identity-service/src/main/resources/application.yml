@@ -1,0 +1,29 @@
+server:
+  port: ${PORT:8092}
+  error:
+    include-message: always
+
+spring:
+  application:
+    name: identity-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:h2:mem:identity;MODE=MySQL;DATABASE_TO_LOWER=TRUE}
+    username: ${SPRING_DATASOURCE_USERNAME:sa}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+security:
+  jwt:
+    secret: ${JWT_SECRET:dev-secret-change-me}
+    ttl-seconds: 7200

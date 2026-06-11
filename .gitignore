@@ -1,0 +1,10 @@
+.env
+.tools/
+**/target/
+**/node_modules/
+**/.npm-cache/
+**/dist/
+**/*.tsbuildinfo
+**/vite.config.js
+**/vite.config.d.ts
+*.log

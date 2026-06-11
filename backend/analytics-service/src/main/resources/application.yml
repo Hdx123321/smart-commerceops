@@ -1,0 +1,18 @@
+server:
+  port: ${PORT:8095}
+
+spring:
+  application:
+    name: analytics-service
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+services:
+  catalog-url: ${CATALOG_SERVICE_URL:http://localhost:8093}
+  order-url: ${ORDER_SERVICE_URL:http://localhost:8094}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
