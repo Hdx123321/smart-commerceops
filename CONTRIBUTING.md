@@ -62,6 +62,50 @@ Use `smart-commerceops` as the Git repository root.
   - what Claude should stop assuming
   - how to validate the new behavior
 
+## Session Startup Check
+
+Every agent session should begin with the same lightweight self-check:
+
+1. `git fetch origin`
+2. `git checkout integration`
+3. `git pull origin integration`
+4. Re-read this file.
+5. Check open GitHub issues or PRs with label `contract-change`.
+6. Review the latest entries in `Sync Log`.
+7. If working on frontend, inspect changes in:
+   - `frontend/src/types.ts`
+   - `frontend/src/api/**`
+8. If working on backend, inspect changes in:
+   - `backend/**/controller/**`
+   - `backend/**/dto/**`
+   - `backend/**/config/**`
+   - `docker-compose.yml`
+   - `.env.example`
+
+## Notification Channels
+
+Use the following channels in descending order of importance:
+
+1. GitHub issue with label `contract-change`
+2. PR description with a `Frontend Impact` or `Backend Impact` section
+3. `Sync Log` entry in this file for fast session recovery
+
+Rules:
+
+- Any change to API request or response shape must create or update a `contract-change` issue.
+- Any change to auth, ports, CORS, env vars, startup method, or Docker topology must create a `Sync Log` entry in the same branch.
+- If a change blocks the other agent immediately, add both:
+  - a `contract-change` issue
+  - a `Sync Log` entry
+
+## Sync Log
+
+Append one row for each cross-agent change. Keep newest entries at the top.
+
+| Date | Source | Change | Affected Surface | What To Stop Assuming | Validation |
+|---|---|---|---|---|---|
+| 2026-06-11 | Codex | Established sync workflow: contract changes go through GitHub issue or PR, and urgent cross-agent changes must also be appended here. | `CONTRIBUTING.md`, GitHub labels and PR template | Do not assume verbal notice or chat-only notice is enough. | Re-read `CONTRIBUTING.md` before starting work. |
+
 ## Minimum Verification
 
 - Frontend changes:

@@ -12,8 +12,14 @@ assignees: []
 
 ## Affected Endpoint Or Payload
 
+## Affected Files
+
 ## Frontend Impact
 
 ## Backend Impact
 
+## Stop Assuming
+
 ## Validation
+
+## Rollout Notes
