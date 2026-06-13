@@ -52,11 +52,29 @@ public class AuthController {
 
   @GetMapping("/me")
   public UserProfile me(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
-    String token = authorization.replace("Bearer ", "");
-    Map<String, Object> claims = jwtSupport.verify(token);
-    Number uid = (Number) claims.get("uid");
-    return users.findById(uid.longValue()).map(this::profile)
-        .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unknown user"));
+    return profile(currentUser(authorization));
+  }
+
+  @PutMapping("/me")
+  public UserProfile updateMe(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+                              @Valid @RequestBody UpdateProfileRequest request) {
+    UserAccount user = currentUser(authorization);
+    users.findByUsername(request.username())
+        .filter(existing -> !existing.getId().equals(user.getId()))
+        .ifPresent(existing -> {
+          throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already exists");
+        });
+    user.updateProfile(
+        request.username(),
+        request.gender(),
+        request.heightCm(),
+        request.weightKg(),
+        request.shoeSize(),
+        request.shippingAddress(),
+        request.phoneNumber(),
+        request.paymentMethod()
+    );
+    return profile(users.save(user));
   }
 
   private AuthResponse authResponse(UserAccount user) {
@@ -64,6 +82,26 @@ public class AuthController {
   }
 
   private UserProfile profile(UserAccount user) {
-    return new UserProfile(user.getId(), user.getUsername(), user.getEmail(), user.getRole());
+    return new UserProfile(
+        user.getId(),
+        user.getUsername(),
+        user.getEmail(),
+        user.getRole(),
+        user.getGender(),
+        user.getHeightCm(),
+        user.getWeightKg(),
+        user.getShoeSize(),
+        user.getShippingAddress(),
+        user.getPhoneNumber(),
+        user.getPaymentMethod()
+    );
+  }
+
+  private UserAccount currentUser(String authorization) {
+    String token = authorization.replace("Bearer ", "");
+    Map<String, Object> claims = jwtSupport.verify(token);
+    Number uid = (Number) claims.get("uid");
+    return users.findById(uid.longValue())
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unknown user"));
   }
 }

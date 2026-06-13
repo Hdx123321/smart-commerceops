@@ -1,10 +1,8 @@
 package com.smartcommerce.order.domain;
 
 public enum OrderStatus {
-  PENDING,
-  PAID,
-  PROCESSING,
-  SHIPPED,
+  PENDING_SHIPMENT,
+  PENDING_RECEIPT,
   COMPLETED,
-  CANCELLED
+  AFTER_SALES
 }

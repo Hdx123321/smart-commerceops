@@ -2,7 +2,6 @@ package com.smartcommerce.order.api;
 
 import com.smartcommerce.order.domain.CartItem;
 import com.smartcommerce.order.domain.CommerceOrder;
-import com.smartcommerce.order.domain.OrderStatus;
 import com.smartcommerce.order.repository.CartItemRepository;
 import com.smartcommerce.order.repository.CommerceOrderRepository;
 import jakarta.validation.Valid;
@@ -76,15 +75,31 @@ public class OrderController {
   @GetMapping("/orders")
   @Transactional(readOnly = true)
   public List<OrderResponse> listOrders(@RequestParam(required = false) Long userId) {
-    List<CommerceOrder> result = userId == null ? orders.findAll() : orders.findByUserIdOrderByCreatedAtDesc(userId);
+    List<CommerceOrder> result = userId == null ? orders.findAllByOrderByCreatedAtDesc() : orders.findByUserIdOrderByCreatedAtDesc(userId);
     return result.stream().map(OrderResponse::from).toList();
   }
 
-  @PutMapping("/orders/{id}/status/{status}")
+  @PutMapping("/orders/{id}/ship")
   @Transactional
-  public OrderResponse updateStatus(@PathVariable Long id, @PathVariable OrderStatus status) {
+  public OrderResponse shipOrder(@PathVariable Long id) {
     CommerceOrder order = orders.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
-    order.transitionTo(status);
+    try {
+      order.markShipped();
+    } catch (IllegalStateException error) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, error.getMessage(), error);
+    }
+    return OrderResponse.from(order);
+  }
+
+  @PutMapping("/orders/{id}/confirm-receipt")
+  @Transactional
+  public OrderResponse confirmReceipt(@PathVariable Long id) {
+    CommerceOrder order = orders.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
+    try {
+      order.confirmReceipt();
+    } catch (IllegalStateException error) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, error.getMessage(), error);
+    }
     return OrderResponse.from(order);
   }
 }

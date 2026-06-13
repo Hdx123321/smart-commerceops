@@ -19,7 +19,11 @@ spring:
           - id: catalog-admin
             uri: ${CATALOG_SERVICE_URL:http://localhost:8093}
             predicates:
-              - Path=/admin/products/**,/admin/inventory/**
+              - Path=/admin/products/**,/admin/inventory/**,/admin/upload,/admin/upload/**
+          - id: catalog-images
+            uri: ${CATALOG_SERVICE_URL:http://localhost:8093}
+            predicates:
+              - Path=/images/**
           - id: orders
             uri: ${ORDER_SERVICE_URL:http://localhost:8094}
             predicates:

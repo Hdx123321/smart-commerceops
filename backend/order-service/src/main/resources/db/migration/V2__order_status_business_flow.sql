@@ -1,0 +1,11 @@
+UPDATE orders
+SET status = 'PENDING_SHIPMENT'
+WHERE status IN ('PENDING', 'PAID', 'PROCESSING');
+
+UPDATE orders
+SET status = 'PENDING_RECEIPT'
+WHERE status = 'SHIPPED';
+
+UPDATE orders
+SET status = 'AFTER_SALES'
+WHERE status = 'CANCELLED';
