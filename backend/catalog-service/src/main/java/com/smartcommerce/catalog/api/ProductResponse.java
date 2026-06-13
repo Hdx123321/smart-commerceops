@@ -14,6 +14,10 @@ public record ProductResponse(
     int salesCount,
     boolean active,
     String imageUrl,
+    Long merchantId,
+    String merchantName,
+    String merchantDescription,
+    String merchantContact,
     double averageRating,
     long ratingCount
 ) {
@@ -29,6 +33,10 @@ public record ProductResponse(
         product.getSalesCount(),
         product.isActive(),
         product.getImageUrl(),
+        product.getMerchantId(),
+        product.getMerchantName(),
+        product.getMerchantDescription(),
+        product.getMerchantContact(),
         Math.round(product.getAverageRating() * 10.0) / 10.0,
         product.getRatingCount()
     );

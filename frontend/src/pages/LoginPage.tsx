@@ -67,7 +67,7 @@ export default function LoginPage({ onAuthenticated }: Props) {
                   <Form.Item name="password" label="Password" rules={[{ required: true, min: 8 }]}>
                     <Input.Password />
                   </Form.Item>
-                  <Form.Item name="role" label="Role">
+                  <Form.Item name="role" label="Role" rules={[{ required: true }]}>
                     <Select options={[
                       { value: 'CUSTOMER', label: 'Customer' },
                       { value: 'MERCHANT', label: 'Merchant' },

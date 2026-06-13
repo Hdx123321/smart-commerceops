@@ -38,6 +38,17 @@ public class Product {
   @Column(length = 1000)
   private String imageUrl;
 
+  private Long merchantId;
+
+  @Column(nullable = false, length = 160)
+  private String merchantName = "Smart CommerceOps";
+
+  @Column(length = 800)
+  private String merchantDescription;
+
+  @Column(length = 160)
+  private String merchantContact;
+
   @Column(nullable = false)
   private double averageRating;
 
@@ -70,11 +81,17 @@ public class Product {
   public int getSalesCount() { return salesCount; }
   public boolean isActive() { return active; }
   public String getImageUrl() { return imageUrl; }
+  public Long getMerchantId() { return merchantId; }
+  public String getMerchantName() { return merchantName; }
+  public String getMerchantDescription() { return merchantDescription; }
+  public String getMerchantContact() { return merchantContact; }
   public double getAverageRating() { return averageRating; }
   public long getRatingCount() { return ratingCount; }
   public Instant getCreatedAt() { return createdAt; }
 
-  public void update(String name, String category, String description, BigDecimal price, int stockQuantity, int lowStockThreshold, boolean active, String imageUrl) {
+  public void update(String name, String category, String description, BigDecimal price, int stockQuantity,
+                     int lowStockThreshold, boolean active, String imageUrl, Long merchantId, String merchantName,
+                     String merchantDescription, String merchantContact) {
     this.name = name;
     this.category = category;
     this.description = description;
@@ -83,6 +100,10 @@ public class Product {
     this.lowStockThreshold = lowStockThreshold;
     this.active = active;
     this.imageUrl = imageUrl;
+    this.merchantId = merchantId;
+    this.merchantName = merchantName == null || merchantName.isBlank() ? "Smart CommerceOps" : merchantName.trim();
+    this.merchantDescription = merchantDescription;
+    this.merchantContact = merchantContact;
   }
 
   public void reserve(int quantity) {

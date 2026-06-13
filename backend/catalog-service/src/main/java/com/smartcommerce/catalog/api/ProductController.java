@@ -1,7 +1,9 @@
 package com.smartcommerce.catalog.api;
 
 import com.smartcommerce.catalog.domain.Product;
+import com.smartcommerce.catalog.domain.ProductReview;
 import com.smartcommerce.catalog.repository.ProductRepository;
+import com.smartcommerce.catalog.repository.ProductReviewRepository;
 import jakarta.validation.Valid;
 import java.util.Comparator;
 import java.util.List;
@@ -13,9 +15,11 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController
 public class ProductController {
   private final ProductRepository products;
+  private final ProductReviewRepository reviews;
 
-  public ProductController(ProductRepository products) {
+  public ProductController(ProductRepository products, ProductReviewRepository reviews) {
     this.products = products;
+    this.reviews = reviews;
   }
 
   @GetMapping("/products")
@@ -31,18 +35,25 @@ public class ProductController {
   @PostMapping("/admin/products")
   @ResponseStatus(HttpStatus.CREATED)
   public ProductResponse createProduct(@Valid @RequestBody ProductRequest request) {
-    Product product = new Product(request.name(), request.category(), request.description(), request.price(),
+    String category = resolveCategory(request);
+    if (products.existsByNameIgnoreCase(request.name())) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "Product name already exists");
+    }
+    Product product = new Product(request.name(), category, request.description(), request.price(),
         request.stockQuantity(), request.lowStockThreshold(), request.imageUrl());
-    product.update(request.name(), request.category(), request.description(), request.price(), request.stockQuantity(),
-        request.lowStockThreshold(), request.active(), request.imageUrl());
+    product.update(request.name(), category, request.description(), request.price(), request.stockQuantity(),
+        request.lowStockThreshold(), request.activeOrDefault(), request.imageUrl(), request.merchantId(),
+        request.merchantNameOrDefault(), request.merchantDescription(), request.merchantContact());
     return ProductResponse.from(products.save(product));
   }
 
   @PutMapping("/admin/products/{id}")
   public ProductResponse updateProduct(@PathVariable Long id, @Valid @RequestBody ProductRequest request) {
+    String category = resolveCategory(request);
     Product product = findProduct(id);
-    product.update(request.name(), request.category(), request.description(), request.price(), request.stockQuantity(),
-        request.lowStockThreshold(), request.active(), request.imageUrl());
+    product.update(request.name(), category, request.description(), request.price(), request.stockQuantity(),
+        request.lowStockThreshold(), request.activeOrDefault(), request.imageUrl(), request.merchantId(),
+        request.merchantNameOrDefault(), request.merchantDescription(), request.merchantContact());
     return ProductResponse.from(products.save(product));
   }
 
@@ -62,6 +73,28 @@ public class ProductController {
     return ProductResponse.from(product);
   }
 
+  @GetMapping("/products/{id}/reviews")
+  public List<ProductReviewResponse> productReviews(@PathVariable Long id) {
+    findProduct(id);
+    return reviews.findByProductIdOrderByCreatedAtDesc(id).stream().map(ProductReviewResponse::from).toList();
+  }
+
+  @PostMapping("/products/{id}/reviews")
+  @ResponseStatus(HttpStatus.CREATED)
+  @Transactional
+  public ProductReviewResponse createReview(@PathVariable Long id, @Valid @RequestBody ProductReviewRequest request) {
+    Product product = findProduct(id);
+    ProductReview review = reviews.save(new ProductReview(
+        product.getId(),
+        request.userId(),
+        request.username(),
+        request.rating(),
+        request.comment()
+    ));
+    product.addRating(request.rating());
+    return ProductReviewResponse.from(review);
+  }
+
   @GetMapping("/admin/inventory/alerts")
   public List<InventoryAlertResponse> inventoryAlerts() {
     return products.findAll().stream()
@@ -79,5 +112,13 @@ public class ProductController {
 
   private Product findProduct(Long id) {
     return products.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found"));
+  }
+
+  private String resolveCategory(ProductRequest request) {
+    try {
+      return request.resolvedCategory();
+    } catch (IllegalArgumentException error) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, error.getMessage(), error);
+    }
   }
 }

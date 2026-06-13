@@ -1,5 +1,16 @@
 import axios from 'axios';
-import type { AuthResponse, CartItem, DashboardSummary, Order, Product, UserProfile } from '../types';
+import type {
+  AuthResponse,
+  CartItem,
+  DashboardSummary,
+  Order,
+  Product,
+  ProductRequest,
+  ProductReview,
+  ProductReviewRequest,
+  UpdateProfileRequest,
+  UserProfile
+} from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8090';
 const TOKEN_KEY = 'smart-commerceops-token';
@@ -45,6 +56,10 @@ export function saveSession(auth: AuthResponse) {
   localStorage.setItem(USER_KEY, JSON.stringify(auth.user));
 }
 
+export function saveUserProfile(user: UserProfile) {
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
@@ -63,6 +78,15 @@ export const authApi = {
   login: async (payload: { username: string; password: string }) => {
     const { data } = await api.post<AuthResponse>('/auth/login', payload);
     return data;
+  },
+  me: async () => {
+    const { data } = await api.get<UserProfile>('/auth/me');
+    return data;
+  },
+  updateProfile: async (payload: UpdateProfileRequest) => {
+    const { data } = await api.put<UserProfile>('/auth/me', payload);
+    saveUserProfile(data);
+    return data;
   }
 };
 
@@ -71,11 +95,23 @@ export const catalogApi = {
     const { data } = await api.get<Product[]>('/products');
     return data;
   },
+  product: async (productId: number) => {
+    const { data } = await api.get<Product>(`/products/${productId}`);
+    return data;
+  },
+  reviews: async (productId: number) => {
+    const { data } = await api.get<ProductReview[]>(`/products/${productId}/reviews`);
+    return data;
+  },
+  createReview: async (productId: number, payload: ProductReviewRequest) => {
+    const { data } = await api.post<ProductReview>(`/products/${productId}/reviews`, payload);
+    return data;
+  },
   inventoryAlerts: async () => {
     const { data } = await api.get('/admin/inventory/alerts');
     return data;
   },
-  createProduct: async (payload: Partial<Product>) => {
+  createProduct: async (payload: ProductRequest) => {
     const { data } = await api.post<Product>('/admin/products', payload);
     return data;
   }
@@ -98,8 +134,12 @@ export const orderApi = {
     const { data } = await api.get<Order[]>('/orders', { params: userId ? { userId } : undefined });
     return data;
   },
-  updateStatus: async (orderId: number, status: Order['status']) => {
-    const { data } = await api.put<Order>(`/orders/${orderId}/status/${status}`);
+  shipOrder: async (orderId: number) => {
+    const { data } = await api.put<Order>(`/orders/${orderId}/ship`);
+    return data;
+  },
+  confirmReceipt: async (orderId: number) => {
+    const { data } = await api.put<Order>(`/orders/${orderId}/confirm-receipt`);
     return data;
   }
 };

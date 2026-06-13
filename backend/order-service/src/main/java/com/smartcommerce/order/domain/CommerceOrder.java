@@ -18,7 +18,7 @@ public class CommerceOrder {
 
   @Enumerated(EnumType.STRING)
   @Column(nullable = false, length = 30)
-  private OrderStatus status = OrderStatus.PENDING;
+  private OrderStatus status = OrderStatus.PENDING_SHIPMENT;
 
   @Enumerated(EnumType.STRING)
   @Column(nullable = false, length = 30)
@@ -68,14 +68,19 @@ public class CommerceOrder {
     totalAmount = totalAmount.add(unitPrice.multiply(BigDecimal.valueOf(quantity)));
   }
 
-  public void transitionTo(OrderStatus nextStatus) {
-    if (status == OrderStatus.CANCELLED || status == OrderStatus.COMPLETED) {
-      throw new IllegalStateException("Terminal orders cannot transition");
+  public void markShipped() {
+    if (status != OrderStatus.PENDING_SHIPMENT) {
+      throw new IllegalStateException("Only pending shipment orders can be shipped");
     }
-    if (nextStatus == OrderStatus.PAID) {
-      paymentStatus = PaymentStatus.PAID;
+    status = OrderStatus.PENDING_RECEIPT;
+    updatedAt = Instant.now();
+  }
+
+  public void confirmReceipt() {
+    if (status != OrderStatus.PENDING_RECEIPT) {
+      throw new IllegalStateException("Only pending receipt orders can be completed");
     }
-    status = nextStatus;
+    status = OrderStatus.COMPLETED;
     updatedAt = Instant.now();
   }
 }
