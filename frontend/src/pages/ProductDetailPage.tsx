@@ -1,6 +1,8 @@
-import { ShoppingCartOutlined } from '@ant-design/icons';
+import { DeleteOutlined, PlusOutlined, ShoppingCartOutlined } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Card, Col, Descriptions, Form, Input, InputNumber, List, Rate, Row, Space, Statistic, Tag, Typography, message } from 'antd';
+import { Alert, Button, Card, Carousel, Col, Descriptions, Form, Image, Input, InputNumber, List, Rate, Row, Skeleton, Space, Statistic, Tag, Typography, Upload, message } from 'antd';
+import type { UploadFile } from 'antd';
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { apiErrorMessage, catalogApi, orderApi } from '../api/client';
 import type { ProductReviewRequest, UserProfile } from '../types';
@@ -20,6 +22,22 @@ export default function ProductDetailPage({ user }: Props) {
   const reviewsQuery = useQuery({ queryKey: ['product-reviews', id], queryFn: () => catalogApi.reviews(id), enabled: Number.isFinite(id) });
   const product = productQuery.data;
   const canShop = user?.role === 'CUSTOMER';
+  const canManage = user?.role === 'MERCHANT' || user?.role === 'ADMIN';
+  const [uploadFileList, setUploadFileList] = useState<UploadFile[]>([]);
+
+  const updateImages = useMutation({
+    mutationFn: async ({ imageUrls }: { imageUrls: string[] }) => {
+      if (!product) throw new Error('No product loaded');
+      return catalogApi.updateProductImages(product.id, imageUrls);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['product', id] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      setUploadFileList([]);
+      messageApi.success('Images updated');
+    },
+    onError: (error) => messageApi.error(apiErrorMessage(error, 'Image update failed')),
+  });
 
   const addToCart = useMutation({
     mutationFn: ({ quantity }: { quantity: number }) => {
@@ -72,6 +90,87 @@ export default function ProductDetailPage({ user }: Props) {
           <Card loading={productQuery.isLoading}>
             {product && (
               <Space direction="vertical" size="large" className="full-width">
+                {product.imageUrls && product.imageUrls.length > 0 && (
+                  <Image.PreviewGroup>
+                    <Carousel
+                      arrows
+                      dots={product.imageUrls.length > 1}
+                      infinite
+                      className="product-image-carousel"
+                    >
+                      {product.imageUrls.map((url, i) => (
+                        <div key={i} className="product-image-slide">
+                          <div className="product-image-wrapper">
+                            <Image
+                              src={url}
+                              alt={`${product.name} - Image ${i + 1}`}
+                              className="product-detail-image"
+                              placeholder={<Skeleton.Image active />}
+                              preview={false}
+                              onError={(e) => {
+                                const el = (e as React.SyntheticEvent<HTMLImageElement>).currentTarget;
+                                el.style.display = 'none';
+                              }}
+                            />
+                            {canManage && (
+                              <Button
+                                type="text"
+                                danger
+                                size="small"
+                                icon={<DeleteOutlined />}
+                                className="product-image-delete"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const filtered = product.imageUrls!.filter((_, j) => j !== i);
+                                  updateImages.mutate({ imageUrls: filtered });
+                                }}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </Carousel>
+                  </Image.PreviewGroup>
+                )}
+
+                {canManage && (
+                  <div className="product-image-upload-section">
+                    <Upload
+                      listType="picture-card"
+                      multiple
+                      accept="image/*"
+                      fileList={uploadFileList}
+                      showUploadList={{ showPreviewIcon: false }}
+                      customRequest={async ({ file, onSuccess, onError }: any) => {
+                        try {
+                          const urls = await catalogApi.uploadImages([file as File]);
+                          onSuccess({ url: urls[0] });
+                        } catch (err) { onError(err); }
+                      }}
+                      onChange={({ fileList: newList }) => setUploadFileList(newList)}
+                    >
+                      {(uploadFileList.length + (product?.imageUrls?.length ?? 0)) < 5 && (
+                        <div><PlusOutlined /><div style={{ marginTop: 8 }}>Upload</div></div>
+                      )}
+                    </Upload>
+                    {uploadFileList.some(f => f.status === 'done') && (
+                      <Button
+                        type="primary"
+                        loading={updateImages.isPending}
+                        style={{ marginTop: 8 }}
+                        onClick={() => {
+                          const newUrls = uploadFileList
+                            .filter(f => f.status === 'done')
+                            .map((f: any) => f.response?.url as string);
+                          const merged = [...(product?.imageUrls ?? []), ...newUrls];
+                          updateImages.mutate({ imageUrls: merged });
+                        }}
+                      >
+                        Save Images
+                      </Button>
+                    )}
+                  </div>
+                )}
                 <Space>
                   <Tag>{product.category}</Tag>
                   <Tag color={product.stockQuantity <= product.lowStockThreshold ? 'red' : 'green'}>

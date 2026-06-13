@@ -2,6 +2,7 @@ package com.smartcommerce.catalog.api;
 
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Set;
 
 public record ProductRequest(
@@ -13,7 +14,7 @@ public record ProductRequest(
     @Min(0) int stockQuantity,
     @Min(0) int lowStockThreshold,
     Boolean active,
-    String imageUrl,
+    List<String> imageUrls,
     Long merchantId,
     String merchantName,
     String merchantDescription,

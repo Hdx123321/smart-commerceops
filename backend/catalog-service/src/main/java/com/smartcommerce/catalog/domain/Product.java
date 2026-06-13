@@ -1,8 +1,11 @@
 package com.smartcommerce.catalog.domain;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 @Entity
 @Table(name = "products")
@@ -35,8 +38,21 @@ public class Product {
   @Column(nullable = false)
   private boolean active = true;
 
-  @Column(length = 1000)
+  @Column(columnDefinition = "TEXT")
   private String imageUrl;
+
+  private static final ObjectMapper MAPPER = new ObjectMapper();
+
+  public static List<String> parseImageUrls(String json) {
+    if (json == null || json.isBlank()) {
+      return List.of();
+    }
+    try {
+      return MAPPER.readValue(json, new TypeReference<List<String>>() {});
+    } catch (Exception e) {
+      return List.of();
+    }
+  }
 
   private Long merchantId;
 
@@ -61,14 +77,14 @@ public class Product {
   protected Product() {
   }
 
-  public Product(String name, String category, String description, BigDecimal price, int stockQuantity, int lowStockThreshold, String imageUrl) {
+  public Product(String name, String category, String description, BigDecimal price, int stockQuantity, int lowStockThreshold, String imageUrls) {
     this.name = name;
     this.category = category;
     this.description = description;
     this.price = price;
     this.stockQuantity = stockQuantity;
     this.lowStockThreshold = lowStockThreshold;
-    this.imageUrl = imageUrl;
+    this.imageUrl = imageUrls;
   }
 
   public Long getId() { return id; }
@@ -90,7 +106,7 @@ public class Product {
   public Instant getCreatedAt() { return createdAt; }
 
   public void update(String name, String category, String description, BigDecimal price, int stockQuantity,
-                     int lowStockThreshold, boolean active, String imageUrl, Long merchantId, String merchantName,
+                     int lowStockThreshold, boolean active, String imageUrls, Long merchantId, String merchantName,
                      String merchantDescription, String merchantContact) {
     this.name = name;
     this.category = category;
@@ -99,11 +115,15 @@ public class Product {
     this.stockQuantity = stockQuantity;
     this.lowStockThreshold = lowStockThreshold;
     this.active = active;
-    this.imageUrl = imageUrl;
+    this.imageUrl = imageUrls;
     this.merchantId = merchantId;
     this.merchantName = merchantName == null || merchantName.isBlank() ? "Smart CommerceOps" : merchantName.trim();
     this.merchantDescription = merchantDescription;
     this.merchantContact = merchantContact;
+  }
+
+  public void updateImageUrls(String imageUrlsJson) {
+    this.imageUrl = imageUrlsJson;
   }
 
   public void reserve(int quantity) {

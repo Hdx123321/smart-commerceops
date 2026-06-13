@@ -40,7 +40,7 @@ export interface Product {
   lowStockThreshold: number;
   salesCount: number;
   active: boolean;
-  imageUrl?: string;
+  imageUrls?: string[];
   merchantId?: number;
   merchantName: string;
   merchantDescription?: string;
@@ -58,7 +58,7 @@ export interface ProductRequest {
   stockQuantity: number;
   lowStockThreshold: number;
   active?: boolean;
-  imageUrl?: string;
+  imageUrls?: string[];
   merchantId?: number;
   merchantName?: string;
   merchantDescription?: string;

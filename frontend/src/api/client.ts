@@ -91,8 +91,8 @@ export const authApi = {
 };
 
 export const catalogApi = {
-  products: async () => {
-    const { data } = await api.get<Product[]>('/products');
+  products: async (params?: { category?: string; search?: string }) => {
+    const { data } = await api.get<Product[]>('/products', { params });
     return data;
   },
   product: async (productId: number) => {
@@ -113,6 +113,18 @@ export const catalogApi = {
   },
   createProduct: async (payload: ProductRequest) => {
     const { data } = await api.post<Product>('/admin/products', payload);
+    return data;
+  },
+  uploadImages: async (files: File[]): Promise<string[]> => {
+    const formData = new FormData();
+    files.forEach((f) => formData.append('files', f));
+    const { data } = await api.post<string[]>('/admin/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  },
+  updateProductImages: async (productId: number, imageUrls: string[]): Promise<Product> => {
+    const { data } = await api.put<Product>(`/admin/products/${productId}/images`, imageUrls);
     return data;
   }
 };
