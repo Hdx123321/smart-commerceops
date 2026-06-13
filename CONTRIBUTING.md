@@ -6,8 +6,8 @@ Use `smart-commerceops` as the Git repository root.
 
 ## Roles
 
-- Codex owns `backend/**`, `infra/**`, `docker-compose.yml`, `.env.example`, CI, deployment, and integration coordination.
-- Claude owns `frontend/**` and frontend-specific documentation updates.
+- Codex owns `infra/**`, `docker-compose.yml`, `.env.example`, CI, deployment, and integration coordination. Codex also owns `backend/**` and reviews all backend changes.
+- Claude owns `frontend/**` and frontend-specific documentation updates. Claude may modify `backend/**` after submitting a written plan and receiving explicit Codex approval (see Cross-Owner Change Protocol).
 - Shared files such as `README.md` must be edited only in the relevant section for each owner.
 
 ## Branch Strategy
@@ -16,24 +16,37 @@ Use `smart-commerceops` as the Git repository root.
 - `integration`: shared integration branch for active work.
 - `codex/be-<issue-slug>`: backend and platform work branches.
 - `claude/fe-<issue-slug>`: frontend work branches.
+- `claude/be-<issue-slug>`: Claude backend work branches (requires approved plan).
 - `ops/chore-<issue-slug>`: repo hygiene, docs, or CI-only changes.
 
 ## Working Rules
 
 - One issue per branch.
 - One pull request per issue.
-- Claude must not directly modify `backend/**`, `infra/**`, or container orchestration.
+- Claude may modify `backend/**` only through the Cross-Owner Change Protocol: written plan → Codex approval → implementation. Claude must not touch `infra/**`, `docker-compose.yml`, or container orchestration.
 - Codex should treat frontend API expectations as a contract and avoid breaking `frontend/src/api/**` and `frontend/src/types.ts` without a tracked contract change.
 - Any API shape change must have a `contract-change` label and be described in the PR.
 
 ## Ownership Boundaries
 
-- Frontend owner:
+- Frontend owner (Claude):
   `frontend/**`
-- Backend owner:
+- Backend owner (Codex, Claude with review):
   `backend/**`
-- Platform owner:
+- Platform owner (Codex only):
   `infra/**`, `docker-compose.yml`, `.github/**`
+
+## Cross-Owner Change Protocol
+
+When Claude needs a backend change:
+
+1. **Write a plan** — list files to modify, what changes, and why. Include verification steps.
+2. **Submit for review** — post the plan as a GitHub issue with label `claude-plan`.
+3. **Wait for approval** — Codex reviews, approves, or requests changes.
+4. **Implement** — after approval, implement on a `claude/be-<slug>` branch.
+5. **PR & merge** — open PR into `integration`, tag Codex for final review.
+
+This protocol applies to any file under `backend/**`. Platform files (`infra/**`, `docker-compose.yml`, `.github/**`) remain Codex-only — Claude must request those changes via a standard GitHub issue.
 
 ## Pull Request Flow
 
@@ -104,6 +117,7 @@ Append one row for each cross-agent change. Keep newest entries at the top.
 
 | Date | Source | Change | Affected Surface | What To Stop Assuming | Validation |
 |---|---|---|---|---|---|
+| 2026-06-13 | Codex | Cart now supports selected-item checkout, merchant-grouped cart display, product image snapshots, and product-detail links. | `order-service` `/cart/{userId}`, `POST /cart/items`, `POST /checkout`, `CartItemResponse`, `CheckoutRequest.cartItemIds`, `frontend/src/pages/CartPage.tsx`, `frontend/src/types.ts`, `frontend/src/api/client.ts` | Do not assume checkout always consumes the whole cart; frontend should send selected `cartItemIds`. Do not assume cart items only contain product name, quantity, and price; cart items now include `imageUrls`, `merchantId`, and `merchantName` snapshots. | `mvn clean test`; `npm run build` |
 | 2026-06-13 | Claude/Codex Sync Correction | Added product image gallery/upload support plus marketplace category and search filters; this was a contract-affecting change and must be visible to both agents. | `catalog-service` `GET /products?category=&search=`, `POST /admin/upload`, `PUT /admin/products/{id}/images`, `/images/**`, `frontend/src/types.ts`, `frontend/src/api/client.ts`, `docker-compose.yml`, `frontend/nginx.conf`, `frontend/vite.config.ts` | Do not assume Product has a single `imageUrl`; use `imageUrls: string[]`. Do not assume uploaded images are served by frontend assets; they are persisted under the catalog upload volume and served through gateway `/images/**`. | `mvn test`; `npm run build`; Docker stack image upload smoke test |
 | 2026-06-13 | Codex | Added product detail page, merchant information fields, and product reviews; cart add moved from product list to detail page. | `catalog-service` product/review API, `frontend/src/pages/ProductsPage.tsx`, `frontend/src/pages/ProductDetailPage.tsx`, `frontend/src/App.tsx`, `frontend/src/types.ts`, `frontend/src/api/client.ts` | Do not assume Product only has catalog fields; do not place Add-to-cart actions on marketplace cards. | `mvn test`; `npm run build` |
 | 2026-06-13 | Codex | Replaced generic order status workflow with shipment business states and explicit ship/confirm receipt actions. | `order-service` order API, `frontend/src/types.ts`, `frontend/src/api/client.ts`, `frontend/src/pages/OrdersPage.tsx` | Do not assume orders use `PENDING/PAID/PROCESSING/SHIPPED/CANCELLED` or arbitrary status updates; use `PENDING_SHIPMENT`, `PENDING_RECEIPT`, `COMPLETED`, `AFTER_SALES` with `ship` and `confirm-receipt`. | `mvn test`; `npm run build` |
