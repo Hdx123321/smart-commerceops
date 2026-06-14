@@ -101,6 +101,10 @@ export const catalogApi = {
     const { data } = await api.get<Product[]>('/products', { params });
     return data;
   },
+  adminProducts: async (params?: { merchantId?: number }) => {
+    const { data } = await api.get<Product[]>('/admin/products', { params });
+    return data;
+  },
   product: async (productId: number) => {
     const { data } = await api.get<Product>(`/products/${productId}`);
     return data;
@@ -188,8 +192,24 @@ export const orderApi = {
     const { data } = await api.put<AfterSalesCase>(`/after-sales/${caseId}/reject`, payload);
     return data;
   },
+  approveAfterSales: async (caseId: number, payload: { merchantId?: number; note?: string }) => {
+    const { data } = await api.put<AfterSalesCase>(`/after-sales/${caseId}/approve`, payload);
+    return data;
+  },
   completeAfterSales: async (caseId: number, payload: { merchantId?: number; note?: string }) => {
     const { data } = await api.put<AfterSalesCase>(`/after-sales/${caseId}/complete`, payload);
+    return data;
+  },
+  confirmReturnReceived: async (caseId: number, payload: { merchantId?: number; note?: string }) => {
+    const { data } = await api.put<AfterSalesCase>(`/after-sales/${caseId}/return-received`, payload);
+    return data;
+  },
+  shipReplacement: async (caseId: number, payload: { merchantId?: number; note?: string }) => {
+    const { data } = await api.put<AfterSalesCase>(`/after-sales/${caseId}/replacement-shipped`, payload);
+    return data;
+  },
+  confirmReplacementReceived: async (caseId: number) => {
+    const { data } = await api.put<AfterSalesCase>(`/after-sales/${caseId}/replacement-received`);
     return data;
   }
 };

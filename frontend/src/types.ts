@@ -114,7 +114,14 @@ export interface OrderLine {
 }
 
 export type AfterSalesType = 'RETURN' | 'EXCHANGE' | 'REFUND_ONLY' | 'CONTACT_MERCHANT';
-export type AfterSalesStatus = 'PENDING_MERCHANT' | 'MERCHANT_REJECTED' | 'COMPLETED' | 'CANCELLED';
+export type AfterSalesStatus =
+  | 'PENDING_MERCHANT'
+  | 'MERCHANT_REJECTED'
+  | 'RETURN_PENDING_RECEIPT'
+  | 'EXCHANGE_PENDING_SHIPMENT'
+  | 'EXCHANGE_PENDING_RECEIPT'
+  | 'COMPLETED'
+  | 'CANCELLED';
 
 export interface Order {
   id: number;

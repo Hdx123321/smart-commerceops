@@ -98,11 +98,60 @@ public class AfterSalesCase {
   }
 
   public void complete(String note) {
+    approve(note);
+  }
+
+  public void approve(String note) {
     if (status != AfterSalesStatus.PENDING_MERCHANT) {
-      throw new IllegalStateException("Only pending after-sales cases can be completed");
+      throw new IllegalStateException("Only pending after-sales cases can be approved");
+    }
+    if (type == AfterSalesType.CONTACT_MERCHANT) {
+      throw new IllegalStateException("Contact requests cannot be approved as after-sales cases");
+    }
+    if (type == AfterSalesType.REFUND_ONLY) {
+      status = AfterSalesStatus.COMPLETED;
+    } else {
+      status = AfterSalesStatus.RETURN_PENDING_RECEIPT;
+    }
+    merchantNote = note;
+    updatedAt = Instant.now();
+  }
+
+  public void confirmReturnedGoods(String note) {
+    if (status != AfterSalesStatus.RETURN_PENDING_RECEIPT) {
+      throw new IllegalStateException("Returned goods can only be confirmed after merchant approval");
+    }
+    if (type == AfterSalesType.RETURN) {
+      status = AfterSalesStatus.COMPLETED;
+    } else if (type == AfterSalesType.EXCHANGE) {
+      status = AfterSalesStatus.EXCHANGE_PENDING_SHIPMENT;
+    } else {
+      throw new IllegalStateException("This after-sales type does not require returned goods confirmation");
+    }
+    merchantNote = note;
+    updatedAt = Instant.now();
+  }
+
+  public void shipReplacement(String note) {
+    if (type != AfterSalesType.EXCHANGE) {
+      throw new IllegalStateException("Only exchange cases can ship replacement goods");
+    }
+    if (status != AfterSalesStatus.EXCHANGE_PENDING_SHIPMENT) {
+      throw new IllegalStateException("Replacement can only be shipped after returned goods are received");
+    }
+    status = AfterSalesStatus.EXCHANGE_PENDING_RECEIPT;
+    merchantNote = note;
+    updatedAt = Instant.now();
+  }
+
+  public void confirmReplacementReceived() {
+    if (type != AfterSalesType.EXCHANGE) {
+      throw new IllegalStateException("Only exchange cases can confirm replacement receipt");
+    }
+    if (status != AfterSalesStatus.EXCHANGE_PENDING_RECEIPT) {
+      throw new IllegalStateException("Replacement receipt can only be confirmed after replacement shipment");
     }
     status = AfterSalesStatus.COMPLETED;
-    merchantNote = note;
     updatedAt = Instant.now();
   }
 }

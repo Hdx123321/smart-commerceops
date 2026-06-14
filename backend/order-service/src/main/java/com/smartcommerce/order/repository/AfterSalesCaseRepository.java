@@ -13,4 +13,5 @@ public interface AfterSalesCaseRepository extends JpaRepository<AfterSalesCase, 
   List<AfterSalesCase> findByMerchantIdOrderByCreatedAtDesc(Long merchantId);
   List<AfterSalesCase> findAllByOrderByCreatedAtDesc();
   boolean existsByOrderIdAndTypeInAndStatus(Long orderId, Collection<AfterSalesType> types, AfterSalesStatus status);
+  boolean existsByOrderIdAndTypeInAndStatusIn(Long orderId, Collection<AfterSalesType> types, Collection<AfterSalesStatus> statuses);
 }

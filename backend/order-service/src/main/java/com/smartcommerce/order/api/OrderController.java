@@ -247,10 +247,15 @@ public class OrderController {
       throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the order owner can request after-sales");
     }
     if (request.type() != AfterSalesType.CONTACT_MERCHANT) {
-      boolean hasPendingCase = afterSalesCases.existsByOrderIdAndTypeInAndStatus(
+      boolean hasPendingCase = afterSalesCases.existsByOrderIdAndTypeInAndStatusIn(
           id,
           List.of(AfterSalesType.RETURN, AfterSalesType.EXCHANGE, AfterSalesType.REFUND_ONLY),
-          AfterSalesStatus.PENDING_MERCHANT
+          List.of(
+              AfterSalesStatus.PENDING_MERCHANT,
+              AfterSalesStatus.RETURN_PENDING_RECEIPT,
+              AfterSalesStatus.EXCHANGE_PENDING_SHIPMENT,
+              AfterSalesStatus.EXCHANGE_PENDING_RECEIPT
+          )
       );
       if (hasPendingCase) {
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This order already has a pending after-sales case");
@@ -365,6 +370,68 @@ public class OrderController {
     AfterSalesCase afterSalesCase = afterSalesCaseForMerchantAction(id, requireAuth(currentUserId, currentRole, currentMerchantId));
     try {
       afterSalesCase.complete(request.note());
+    } catch (IllegalStateException error) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, error.getMessage(), error);
+    }
+    return AfterSalesResponse.from(afterSalesCase);
+  }
+
+  @PutMapping("/after-sales/{id}/approve")
+  @Transactional
+  public AfterSalesResponse approveAfterSales(@PathVariable Long id, @RequestBody AfterSalesDecisionRequest request,
+                                              @RequestHeader(name = USER_ID_HEADER, required = false) String currentUserId,
+                                              @RequestHeader(name = USER_ROLE_HEADER, required = false) String currentRole,
+                                              @RequestHeader(name = MERCHANT_ID_HEADER, required = false) String currentMerchantId) {
+    AfterSalesCase afterSalesCase = afterSalesCaseForMerchantAction(id, requireAuth(currentUserId, currentRole, currentMerchantId));
+    try {
+      afterSalesCase.approve(request.note());
+    } catch (IllegalStateException error) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, error.getMessage(), error);
+    }
+    return AfterSalesResponse.from(afterSalesCase);
+  }
+
+  @PutMapping("/after-sales/{id}/return-received")
+  @Transactional
+  public AfterSalesResponse confirmReturnedGoods(@PathVariable Long id, @RequestBody AfterSalesDecisionRequest request,
+                                                 @RequestHeader(name = USER_ID_HEADER, required = false) String currentUserId,
+                                                 @RequestHeader(name = USER_ROLE_HEADER, required = false) String currentRole,
+                                                 @RequestHeader(name = MERCHANT_ID_HEADER, required = false) String currentMerchantId) {
+    AfterSalesCase afterSalesCase = afterSalesCaseForMerchantAction(id, requireAuth(currentUserId, currentRole, currentMerchantId));
+    try {
+      afterSalesCase.confirmReturnedGoods(request.note());
+    } catch (IllegalStateException error) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, error.getMessage(), error);
+    }
+    return AfterSalesResponse.from(afterSalesCase);
+  }
+
+  @PutMapping("/after-sales/{id}/replacement-shipped")
+  @Transactional
+  public AfterSalesResponse shipReplacement(@PathVariable Long id, @RequestBody AfterSalesDecisionRequest request,
+                                            @RequestHeader(name = USER_ID_HEADER, required = false) String currentUserId,
+                                            @RequestHeader(name = USER_ROLE_HEADER, required = false) String currentRole,
+                                            @RequestHeader(name = MERCHANT_ID_HEADER, required = false) String currentMerchantId) {
+    AfterSalesCase afterSalesCase = afterSalesCaseForMerchantAction(id, requireAuth(currentUserId, currentRole, currentMerchantId));
+    try {
+      afterSalesCase.shipReplacement(request.note());
+    } catch (IllegalStateException error) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, error.getMessage(), error);
+    }
+    return AfterSalesResponse.from(afterSalesCase);
+  }
+
+  @PutMapping("/after-sales/{id}/replacement-received")
+  @Transactional
+  public AfterSalesResponse confirmReplacementReceived(@PathVariable Long id,
+                                                       @RequestHeader(name = USER_ID_HEADER, required = false) String currentUserId,
+                                                       @RequestHeader(name = USER_ROLE_HEADER, required = false) String currentRole) {
+    AuthContext auth = requireAuth(currentUserId, currentRole, null);
+    AfterSalesCase afterSalesCase = afterSalesCases.findById(id)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "After-sales case not found"));
+    requireCustomerOwner(auth, afterSalesCase.getUserId());
+    try {
+      afterSalesCase.confirmReplacementReceived();
     } catch (IllegalStateException error) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, error.getMessage(), error);
     }

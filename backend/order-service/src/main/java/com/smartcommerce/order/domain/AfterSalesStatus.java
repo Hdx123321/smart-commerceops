@@ -3,6 +3,9 @@ package com.smartcommerce.order.domain;
 public enum AfterSalesStatus {
   PENDING_MERCHANT,
   MERCHANT_REJECTED,
+  RETURN_PENDING_RECEIPT,
+  EXCHANGE_PENDING_SHIPMENT,
+  EXCHANGE_PENDING_RECEIPT,
   COMPLETED,
   CANCELLED
 }
