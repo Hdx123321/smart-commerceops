@@ -45,6 +45,18 @@ public class UserAccount {
   @Column(length = 120)
   private String paymentMethod;
 
+  @Column(length = 160)
+  private String merchantName;
+
+  @Column(length = 800)
+  private String merchantDescription;
+
+  @Column(length = 160)
+  private String merchantContact;
+
+  @Column(length = 300)
+  private String merchantAddress;
+
   protected UserAccount() {
   }
 
@@ -53,6 +65,10 @@ public class UserAccount {
     this.email = email;
     this.passwordHash = passwordHash;
     this.role = role;
+    if (role == Role.MERCHANT) {
+      this.merchantName = username + " Store";
+      this.merchantContact = email;
+    }
   }
 
   public Long getId() { return id; }
@@ -68,10 +84,16 @@ public class UserAccount {
   public String getShippingAddress() { return shippingAddress; }
   public String getPhoneNumber() { return phoneNumber; }
   public String getPaymentMethod() { return paymentMethod; }
+  public Long getMerchantId() { return role == Role.MERCHANT ? id : null; }
+  public String getMerchantName() { return merchantName; }
+  public String getMerchantDescription() { return merchantDescription; }
+  public String getMerchantContact() { return merchantContact; }
+  public String getMerchantAddress() { return merchantAddress; }
 
   public void updateProfile(String username, String gender, Integer heightCm, Integer weightKg,
                             java.math.BigDecimal shoeSize, String shippingAddress, String phoneNumber,
-                            String paymentMethod) {
+                            String paymentMethod, String merchantName, String merchantDescription,
+                            String merchantContact, String merchantAddress) {
     this.username = username;
     this.gender = gender;
     this.heightCm = heightCm;
@@ -80,5 +102,11 @@ public class UserAccount {
     this.shippingAddress = shippingAddress;
     this.phoneNumber = phoneNumber;
     this.paymentMethod = paymentMethod;
+    if (role == Role.MERCHANT) {
+      this.merchantName = merchantName == null || merchantName.isBlank() ? username + " Store" : merchantName;
+      this.merchantDescription = merchantDescription;
+      this.merchantContact = merchantContact;
+      this.merchantAddress = merchantAddress;
+    }
   }
 }

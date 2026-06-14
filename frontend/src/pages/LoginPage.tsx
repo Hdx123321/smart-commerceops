@@ -70,8 +70,7 @@ export default function LoginPage({ onAuthenticated }: Props) {
                   <Form.Item name="role" label="Role" rules={[{ required: true }]}>
                     <Select options={[
                       { value: 'CUSTOMER', label: 'Customer' },
-                      { value: 'MERCHANT', label: 'Merchant' },
-                      { value: 'ADMIN', label: 'Admin' }
+                      { value: 'MERCHANT', label: 'Merchant' }
                     ]} />
                   </Form.Item>
                   <Space direction="vertical" className="full-width">

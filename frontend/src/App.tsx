@@ -4,8 +4,12 @@ import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from 'react
 import { useState, type ReactElement } from 'react';
 import { clearSession, currentUser } from './api/client';
 import DashboardPage from './pages/DashboardPage';
+import AfterSalesDetailPage from './pages/AfterSalesDetailPage';
+import ChatDetailPage from './pages/ChatDetailPage';
+import ChatListPage from './pages/ChatListPage';
 import LoginPage from './pages/LoginPage';
 import OrdersPage from './pages/OrdersPage';
+import OrderDetailPage from './pages/OrderDetailPage';
 import ProductsPage from './pages/ProductsPage';
 import ProductDetailPage from './pages/ProductDetailPage';
 import CartPage from './pages/CartPage';
@@ -57,9 +61,11 @@ function Shell() {
     { key: '/products', label: <Link to="/products">Products</Link> },
     ...(user?.role === 'CUSTOMER' ? [{ key: '/cart', label: <Link to="/cart">Cart</Link> }] : []),
     ...(user ? [{ key: '/orders', label: <Link to="/orders">Orders</Link> }] : []),
+    ...(user ? [{ key: '/chat', label: <Link to="/chat">Messages</Link> }] : []),
     ...(isOpsUser(user) ? [{ key: '/dashboard', label: <Link to="/dashboard">Ops Dashboard</Link> }] : []),
     ...(user ? [{ key: '/profile', label: <Link to="/profile">Profile</Link> }] : [])
   ];
+  const selectedMenuKey = location.pathname.startsWith('/chat') ? '/chat' : location.pathname;
 
   return (
     <Layout className="app-shell">
@@ -68,7 +74,7 @@ function Shell() {
           <ShopOutlined />
           <Typography.Text strong>Smart CommerceOps</Typography.Text>
         </Space>
-        <Menu mode="horizontal" selectedKeys={[location.pathname]} items={menuItems} className="nav" />
+        <Menu mode="horizontal" selectedKeys={[selectedMenuKey]} items={menuItems} className="nav" />
         {user ? (
           <Space>
             <Typography.Text>{user.username} ({user.role})</Typography.Text>
@@ -113,10 +119,42 @@ function Shell() {
             )}
           />
           <Route
+            path="/orders/:orderId"
+            element={(
+              <ProtectedRoute user={user}>
+                <OrderDetailPage user={user as UserProfile} />
+              </ProtectedRoute>
+            )}
+          />
+          <Route
+            path="/after-sales/:caseId"
+            element={(
+              <ProtectedRoute user={user}>
+                <AfterSalesDetailPage user={user as UserProfile} />
+              </ProtectedRoute>
+            )}
+          />
+          <Route
+            path="/chat"
+            element={(
+              <ProtectedRoute user={user}>
+                <ChatListPage user={user as UserProfile} />
+              </ProtectedRoute>
+            )}
+          />
+          <Route
+            path="/chat/:conversationId"
+            element={(
+              <ProtectedRoute user={user}>
+                <ChatDetailPage user={user as UserProfile} />
+              </ProtectedRoute>
+            )}
+          />
+          <Route
             path="/dashboard"
             element={(
               <ProtectedRoute user={user} allowedRoles={OPS_ROLES}>
-                <DashboardPage />
+                <DashboardPage user={user as UserProfile} />
               </ProtectedRoute>
             )}
           />

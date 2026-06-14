@@ -1,6 +1,7 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Space, Table, Tabs, Tag, Typography, message } from 'antd';
-import { apiErrorMessage, orderApi } from '../api/client';
+import { useQuery } from '@tanstack/react-query';
+import { Button, Card, Space, Table, Tabs, Tag, Typography } from 'antd';
+import { Link } from 'react-router-dom';
+import { orderApi } from '../api/client';
 import type { Order, UserProfile } from '../types';
 
 interface Props {
@@ -32,30 +33,14 @@ const tabs: Array<{ key: OrderTab; label: string }> = [
 ];
 
 export default function OrdersPage({ user }: Props) {
-  const queryClient = useQueryClient();
-  const [messageApi, contextHolder] = message.useMessage();
   const canManage = user.role === 'MERCHANT' || user.role === 'ADMIN';
   const ordersQuery = useQuery({
-    queryKey: ['orders', canManage ? 'all' : user.id],
-    queryFn: () => orderApi.orders(canManage ? undefined : user.id)
-  });
-
-  const shipOrder = useMutation({
-    mutationFn: orderApi.shipOrder,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      messageApi.success('Order shipped');
-    },
-    onError: (error) => messageApi.error(apiErrorMessage(error, 'Ship order failed'))
-  });
-
-  const confirmReceipt = useMutation({
-    mutationFn: orderApi.confirmReceipt,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      messageApi.success('Receipt confirmed');
-    },
-    onError: (error) => messageApi.error(apiErrorMessage(error, 'Confirm receipt failed'))
+    queryKey: ['orders', user.role, user.role === 'MERCHANT' ? (user.merchantId ?? user.id) : user.id],
+    queryFn: () => {
+      if (user.role === 'ADMIN') return orderApi.orders();
+      if (user.role === 'MERCHANT') return orderApi.orders({ merchantId: user.merchantId ?? user.id });
+      return orderApi.orders({ userId: user.id });
+    }
   });
 
   const orders = ordersQuery.data ?? [];
@@ -68,32 +53,22 @@ export default function OrdersPage({ user }: Props) {
         dataSource={rows}
         loading={ordersQuery.isLoading}
         columns={[
-          { title: 'Order', dataIndex: 'id', render: (id) => `#${id}` },
-          { title: 'User', dataIndex: 'userId' },
+          { title: 'Order', dataIndex: 'id', render: (id) => <Link to={`/orders/${id}`}>#{id}</Link> },
+          ...(canManage ? [{ title: 'User', dataIndex: 'userId' }] : []),
+          ...(user.role === 'ADMIN' ? [{ title: 'Merchant', dataIndex: 'merchantName' }] : []),
           { title: 'Total', dataIndex: 'totalAmount', render: (value) => `$${Number(value).toFixed(2)}` },
           { title: 'Status', dataIndex: 'status', render: (status: Order['status']) => <Tag color={statusColors[status]}>{statusLabels[status]}</Tag> },
           { title: 'Address', dataIndex: 'shippingAddress' },
-          { title: 'Phone', dataIndex: 'phoneNumber' },
           { title: 'Items', render: (_, row) => row.lines.map((line) => `${line.productName} x${line.quantity}`).join(', ') },
           {
             title: 'Action',
-            render: (_, row) => {
-              if (canManage && row.status === 'PENDING_SHIPMENT') {
-                return (
-                  <Button size="small" type="primary" loading={shipOrder.isPending} onClick={() => shipOrder.mutate(row.id)}>
-                    确认发货
-                  </Button>
-                );
-              }
-              if (!canManage && row.status === 'PENDING_RECEIPT') {
-                return (
-                  <Button size="small" type="primary" loading={confirmReceipt.isPending} onClick={() => confirmReceipt.mutate(row.id)}>
-                    确认收货
-                  </Button>
-                );
-              }
-              return <Typography.Text type="secondary">-</Typography.Text>;
-            }
+            render: (_, row) => (
+              <Button size="small">
+                <Link to={row.status === 'AFTER_SALES' && row.latestAfterSalesCaseId ? `/after-sales/${row.latestAfterSalesCaseId}` : `/orders/${row.id}`}>
+                  {row.status === 'AFTER_SALES' && row.latestAfterSalesCaseId ? (canManage ? '处理售后' : '查看售后') : (canManage ? '处理订单' : '查看详情')}
+                </Link>
+              </Button>
+            )
           }
         ]}
       />
@@ -102,12 +77,11 @@ export default function OrdersPage({ user }: Props) {
 
   return (
     <Space direction="vertical" size="large" className="page">
-      {contextHolder}
       <div className="page-heading">
         <div>
           <Typography.Title level={2}>{canManage ? 'Order Operations' : 'My Orders'}</Typography.Title>
           <Typography.Text type="secondary">
-            {canManage ? 'Manage shipment progress and fulfillment status.' : 'Track shipment progress and confirm receipt.'}
+            {canManage ? 'Open an order to manage fulfillment and customer delivery details.' : 'Open an order to view item, payment, delivery, and after-sales actions.'}
           </Typography.Text>
         </div>
       </div>

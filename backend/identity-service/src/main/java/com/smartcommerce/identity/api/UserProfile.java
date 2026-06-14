@@ -14,6 +14,11 @@ public record UserProfile(
     BigDecimal shoeSize,
     String shippingAddress,
     String phoneNumber,
-    String paymentMethod
+    String paymentMethod,
+    Long merchantId,
+    String merchantName,
+    String merchantDescription,
+    String merchantContact,
+    String merchantAddress
 ) {
 }

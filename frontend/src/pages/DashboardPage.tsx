@@ -1,10 +1,18 @@
 import { Alert, Card, Col, Row, Space, Statistic, Table, Typography } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { analyticsApi } from '../api/client';
-import type { InventoryRecommendation } from '../types';
+import type { InventoryRecommendation, UserProfile } from '../types';
 
-export default function DashboardPage() {
-  const dashboardQuery = useQuery({ queryKey: ['dashboard'], queryFn: analyticsApi.dashboard });
+interface Props {
+  user: UserProfile;
+}
+
+export default function DashboardPage({ user }: Props) {
+  const merchantId = user.role === 'MERCHANT' ? (user.merchantId ?? user.id) : undefined;
+  const dashboardQuery = useQuery({
+    queryKey: ['dashboard', merchantId ?? 'all'],
+    queryFn: () => analyticsApi.dashboard(merchantId ? { merchantId } : undefined)
+  });
   const data = dashboardQuery.data;
 
   return (
@@ -12,7 +20,9 @@ export default function DashboardPage() {
       <div className="page-heading">
         <div>
           <Typography.Title level={2}>Operations Dashboard</Typography.Title>
-          <Typography.Text type="secondary">Analytics service combines orders, catalog inventory, and replenishment rules.</Typography.Text>
+          <Typography.Text type="secondary">
+            {merchantId ? 'Merchant-scoped analytics for your products, orders, and replenishment rules.' : 'Platform analytics combining orders, catalog inventory, and replenishment rules.'}
+          </Typography.Text>
         </div>
       </div>
       <Row gutter={[16, 16]}>

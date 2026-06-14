@@ -48,6 +48,8 @@ export default function ProductsPage({ user }: Props) {
   });
 
   const canManage = user?.role === 'MERCHANT' || user?.role === 'ADMIN';
+  const isMerchant = user?.role === 'MERCHANT';
+  const isAdmin = user?.role === 'ADMIN';
 
   return (
     <Space direction="vertical" size="large" className="page">
@@ -125,7 +127,16 @@ export default function ProductsPage({ user }: Props) {
             const imageUrls = fileList
               .filter((f) => f.status === 'done')
               .map((f: any) => f.response?.url as string);
-            createProductMutation.mutate({ ...values, imageUrls });
+            createProductMutation.mutate({
+              ...values,
+              imageUrls,
+              ...(isMerchant ? {
+                merchantId: user.merchantId ?? user.id,
+                merchantName: user.merchantName || `${user.username} Store`,
+                merchantDescription: user.merchantDescription,
+                merchantContact: user.merchantContact
+              } : {})
+            });
           }}
         >
           <Form.Item name="name" label="Name" rules={[{ required: true }]}>
@@ -160,15 +171,22 @@ export default function ProductsPage({ user }: Props) {
               <div><PlusOutlined /><div style={{ marginTop: 8 }}>Upload</div></div>
             </Upload>
           </Form.Item>
-          <Form.Item name="merchantName" label="Merchant name">
-            <Input placeholder="Smart CommerceOps" />
-          </Form.Item>
-          <Form.Item name="merchantDescription" label="Merchant description">
-            <Input.TextArea rows={2} />
-          </Form.Item>
-          <Form.Item name="merchantContact" label="Merchant contact">
-            <Input />
-          </Form.Item>
+          {isAdmin && (
+            <>
+              <Form.Item name="merchantId" label="Merchant ID">
+                <InputNumber min={1} className="full-width" />
+              </Form.Item>
+              <Form.Item name="merchantName" label="Merchant name">
+                <Input placeholder="Smart CommerceOps" />
+              </Form.Item>
+              <Form.Item name="merchantDescription" label="Merchant description">
+                <Input.TextArea rows={2} />
+              </Form.Item>
+              <Form.Item name="merchantContact" label="Merchant contact">
+                <Input />
+              </Form.Item>
+            </>
+          )}
           <Row gutter={12}>
             <Col span={8}>
               <Form.Item name="price" label="Price" rules={[{ required: true }]}>

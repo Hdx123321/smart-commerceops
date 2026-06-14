@@ -14,6 +14,10 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
   servlet:
     multipart:
       max-file-size: 5MB
@@ -22,6 +26,9 @@ spring:
 app:
   upload:
     dir: ${APP_UPLOAD_DIR:./uploads}
+  cache:
+    catalog:
+      ttl: ${CATALOG_CACHE_TTL:5m}
 
 management:
   endpoints:

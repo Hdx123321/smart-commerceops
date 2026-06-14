@@ -31,6 +31,9 @@ public class AuthController {
       throw new ResponseStatusException(HttpStatus.CONFLICT, "Username or email already exists");
     }
     Role role = request.role() == null ? Role.CUSTOMER : request.role();
+    if (role == Role.ADMIN) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin accounts cannot be created through public registration");
+    }
     UserAccount user = users.save(new UserAccount(
         request.username(),
         request.email(),
@@ -72,7 +75,11 @@ public class AuthController {
         request.shoeSize(),
         request.shippingAddress(),
         request.phoneNumber(),
-        request.paymentMethod()
+        request.paymentMethod(),
+        request.merchantName(),
+        request.merchantDescription(),
+        request.merchantContact(),
+        request.merchantAddress()
     );
     return profile(users.save(user));
   }
@@ -93,7 +100,12 @@ public class AuthController {
         user.getShoeSize(),
         user.getShippingAddress(),
         user.getPhoneNumber(),
-        user.getPaymentMethod()
+        user.getPaymentMethod(),
+        user.getMerchantId(),
+        user.getMerchantName(),
+        user.getMerchantDescription(),
+        user.getMerchantContact(),
+        user.getMerchantAddress()
     );
   }
 

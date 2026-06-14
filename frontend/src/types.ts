@@ -12,6 +12,11 @@ export interface UserProfile {
   shippingAddress?: string;
   phoneNumber?: string;
   paymentMethod?: string;
+  merchantId?: number;
+  merchantName?: string;
+  merchantDescription?: string;
+  merchantContact?: string;
+  merchantAddress?: string;
 }
 
 export interface AuthResponse {
@@ -28,6 +33,10 @@ export interface UpdateProfileRequest {
   shippingAddress?: string;
   phoneNumber?: string;
   paymentMethod?: string;
+  merchantName?: string;
+  merchantDescription?: string;
+  merchantContact?: string;
+  merchantAddress?: string;
 }
 
 export interface Product {
@@ -89,6 +98,9 @@ export interface CartItem {
   productName: string;
   unitPrice: number;
   quantity: number;
+  imageUrls?: string[];
+  merchantId?: number;
+  merchantName: string;
 }
 
 export interface OrderLine {
@@ -96,18 +108,104 @@ export interface OrderLine {
   productName: string;
   quantity: number;
   unitPrice: number;
+  imageUrls?: string[];
+  merchantId?: number;
+  merchantName: string;
 }
+
+export type AfterSalesType = 'RETURN' | 'EXCHANGE' | 'REFUND_ONLY' | 'CONTACT_MERCHANT';
+export type AfterSalesStatus = 'PENDING_MERCHANT' | 'MERCHANT_REJECTED' | 'COMPLETED' | 'CANCELLED';
 
 export interface Order {
   id: number;
   userId: number;
+  merchantId?: number;
+  merchantName: string;
   status: 'PENDING_SHIPMENT' | 'PENDING_RECEIPT' | 'COMPLETED' | 'AFTER_SALES';
   paymentStatus: 'UNPAID' | 'PAID' | 'REFUNDED';
   totalAmount: number;
   shippingAddress: string;
   phoneNumber: string;
+  paymentMethod?: string;
+  paidAt?: string;
   createdAt: string;
+  updatedAt: string;
+  latestAfterSalesCaseId?: number;
+  latestAfterSalesType?: AfterSalesType;
+  latestAfterSalesStatus?: AfterSalesStatus;
   lines: OrderLine[];
+}
+
+export interface AfterSalesCase {
+  id: number;
+  orderId: number;
+  userId: number;
+  merchantId?: number;
+  merchantName: string;
+  type: AfterSalesType;
+  status: AfterSalesStatus;
+  reason: string;
+  description?: string;
+  contactMethod?: string;
+  merchantNote?: string;
+  orderTotalAmount: number;
+  shippingAddress: string;
+  phoneNumber: string;
+  createdAt: string;
+  updatedAt: string;
+  lines: OrderLine[];
+}
+
+export interface AfterSalesRequest {
+  userId: number;
+  type: AfterSalesType;
+  reason: string;
+  description?: string;
+  contactMethod?: string;
+}
+
+export type ConversationContextType = 'PRODUCT' | 'ORDER' | 'AFTER_SALES' | 'GENERAL';
+export type SenderRole = 'CUSTOMER' | 'MERCHANT' | 'ADMIN';
+
+export interface Conversation {
+  id: number;
+  customerId: number;
+  merchantId: number;
+  merchantName: string;
+  contextType: ConversationContextType;
+  contextId?: number;
+  contextTitle?: string;
+  lastMessagePreview?: string;
+  lastMessageAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  unreadCount: number;
+}
+
+export interface ChatMessage {
+  id: number;
+  conversationId: number;
+  senderId: number;
+  senderRole: SenderRole;
+  senderName: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface CreateConversationRequest {
+  customerId: number;
+  merchantId: number;
+  merchantName: string;
+  contextType: ConversationContextType;
+  contextId?: number;
+  contextTitle?: string;
+}
+
+export interface SendMessageRequest {
+  senderId: number;
+  senderRole: SenderRole;
+  senderName: string;
+  content: string;
 }
 
 export interface InventoryRecommendation {

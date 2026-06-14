@@ -118,3 +118,135 @@ body {
 .product-filter-bar {
   margin-bottom: 8px;
 }
+
+.cart-toolbar,
+.cart-summary-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.merchant-cart-card .ant-card-body {
+  padding: 0;
+}
+
+.cart-item-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 72px 120px;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.cart-item-row:first-child {
+  border-top: 0;
+}
+
+.cart-product-link {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  color: inherit;
+}
+
+.cart-product-link:hover {
+  color: inherit;
+}
+
+.cart-product-image {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: #f5f5f5;
+}
+
+.cart-product-image-empty {
+  display: grid;
+  place-items: center;
+  color: #8c8c8c;
+  font-size: 12px;
+}
+
+.cart-product-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.cart-quantity,
+.cart-subtotal {
+  text-align: right;
+}
+
+.cart-total {
+  margin: 0 !important;
+}
+
+.order-detail-header,
+.order-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.order-action-bar {
+  justify-content: flex-start;
+}
+
+.chat-list-icon {
+  font-size: 24px;
+  color: #1677ff;
+}
+
+.chat-message {
+  display: flex;
+  max-width: 72%;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.chat-message-mine {
+  margin-left: auto;
+  background: #e6f4ff;
+  border-color: #91caff;
+}
+
+.chat-compose {
+  width: 100%;
+  align-items: flex-start;
+}
+
+.chat-compose-input {
+  flex: 1;
+  margin-right: 8px;
+}
+
+@media (max-width: 640px) {
+  .cart-item-row {
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
+
+  .cart-quantity,
+  .cart-subtotal {
+    grid-column: 2;
+    text-align: left;
+  }
+
+  .chat-message {
+    max-width: 100%;
+  }
+}
