@@ -1,6 +1,7 @@
 package com.smartcommerce.catalog.api;
 
 import com.smartcommerce.catalog.domain.Product;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -21,7 +22,7 @@ public record ProductResponse(
     String merchantContact,
     double averageRating,
     long ratingCount
-) {
+) implements Serializable {
   public static ProductResponse from(Product product) {
     return new ProductResponse(
         product.getId(),

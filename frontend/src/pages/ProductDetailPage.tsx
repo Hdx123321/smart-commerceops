@@ -1,10 +1,10 @@
-import { DeleteOutlined, PlusOutlined, ShoppingCartOutlined } from '@ant-design/icons';
+import { DeleteOutlined, MessageOutlined, PlusOutlined, ShoppingCartOutlined } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Card, Carousel, Col, Descriptions, Form, Image, Input, InputNumber, List, Rate, Row, Skeleton, Space, Statistic, Tag, Typography, Upload, message } from 'antd';
 import type { UploadFile } from 'antd';
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { apiErrorMessage, catalogApi, orderApi } from '../api/client';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { apiErrorMessage, catalogApi, chatApi, orderApi } from '../api/client';
 import type { ProductReviewRequest, UserProfile } from '../types';
 
 interface Props {
@@ -13,6 +13,7 @@ interface Props {
 
 export default function ProductDetailPage({ user }: Props) {
   const { productId } = useParams();
+  const navigate = useNavigate();
   const id = Number(productId);
   const queryClient = useQueryClient();
   const [reviewForm] = Form.useForm<ProductReviewRequest>();
@@ -22,7 +23,7 @@ export default function ProductDetailPage({ user }: Props) {
   const reviewsQuery = useQuery({ queryKey: ['product-reviews', id], queryFn: () => catalogApi.reviews(id), enabled: Number.isFinite(id) });
   const product = productQuery.data;
   const canShop = user?.role === 'CUSTOMER';
-  const canManage = user?.role === 'MERCHANT' || user?.role === 'ADMIN';
+  const canManage = user?.role === 'ADMIN' || (user?.role === 'MERCHANT' && product?.merchantId === (user.merchantId ?? user.id));
   const [uploadFileList, setUploadFileList] = useState<UploadFile[]>([]);
 
   const updateImages = useMutation({
@@ -51,6 +52,24 @@ export default function ProductDetailPage({ user }: Props) {
       cartForm.setFieldsValue({ quantity: 1 });
     },
     onError: (error) => messageApi.error(apiErrorMessage(error, 'Add to cart failed'))
+  });
+
+  const contactMerchant = useMutation({
+    mutationFn: async () => {
+      if (!user || !product) {
+        throw new Error('Login required');
+      }
+      return chatApi.createConversation({
+        customerId: user.id,
+        merchantId: product.merchantId ?? 0,
+        merchantName: product.merchantName,
+        contextType: 'PRODUCT',
+        contextId: product.id,
+        contextTitle: product.name
+      });
+    },
+    onSuccess: (conversation) => navigate(`/chat/${conversation.id}`),
+    onError: (error) => messageApi.error(apiErrorMessage(error, 'Contact merchant failed'))
   });
 
   const createReview = useMutation({
@@ -172,8 +191,8 @@ export default function ProductDetailPage({ user }: Props) {
                   </div>
                 )}
                 <Space>
-                  <Tag>{product.category}</Tag>
-                  <Tag color={product.stockQuantity <= product.lowStockThreshold ? 'red' : 'green'}>
+                  <Tag className="pill-tag-mint">{product.category}</Tag>
+                  <Tag className={product.stockQuantity <= product.lowStockThreshold ? 'pill-tag-shade' : 'pill-tag-mint'}>
                     {product.stockQuantity <= product.lowStockThreshold ? 'Low stock' : 'In stock'}
                   </Tag>
                 </Space>
@@ -192,11 +211,21 @@ export default function ProductDetailPage({ user }: Props) {
         <Col xs={24} lg={8}>
           <Card title="Merchant" loading={productQuery.isLoading}>
             {product && (
-              <Descriptions column={1} size="small">
-                <Descriptions.Item label="Name">{product.merchantName}</Descriptions.Item>
-                <Descriptions.Item label="Contact">{product.merchantContact || 'Not provided'}</Descriptions.Item>
-                <Descriptions.Item label="About">{product.merchantDescription || 'Platform managed merchant profile.'}</Descriptions.Item>
-              </Descriptions>
+              <Space direction="vertical" className="full-width">
+                <Descriptions column={1} size="small">
+                  <Descriptions.Item label="Name">{product.merchantName}</Descriptions.Item>
+                  <Descriptions.Item label="Contact">{product.merchantContact || 'Not provided'}</Descriptions.Item>
+                  <Descriptions.Item label="About">{product.merchantDescription || 'Platform managed merchant profile.'}</Descriptions.Item>
+                </Descriptions>
+                <Button
+                  icon={<MessageOutlined />}
+                  disabled={!canShop}
+                  loading={contactMerchant.isPending}
+                  onClick={() => contactMerchant.mutate()}
+                >
+                  Contact merchant
+                </Button>
+              </Space>
             )}
           </Card>
         </Col>

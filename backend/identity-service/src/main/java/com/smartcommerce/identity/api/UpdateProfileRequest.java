@@ -15,6 +15,10 @@ public record UpdateProfileRequest(
     @DecimalMin("1.0") BigDecimal shoeSize,
     @Size(max = 500) String shippingAddress,
     @Size(max = 40) String phoneNumber,
-    @Size(max = 120) String paymentMethod
+    @Size(max = 120) String paymentMethod,
+    @Size(max = 160) String merchantName,
+    @Size(max = 800) String merchantDescription,
+    @Size(max = 160) String merchantContact,
+    @Size(max = 300) String merchantAddress
 ) {
 }

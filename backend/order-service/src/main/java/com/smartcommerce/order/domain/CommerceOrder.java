@@ -16,13 +16,18 @@ public class CommerceOrder {
   @Column(nullable = false)
   private Long userId;
 
+  private Long merchantId;
+
+  @Column(nullable = false, length = 160)
+  private String merchantName = "Smart CommerceOps";
+
   @Enumerated(EnumType.STRING)
   @Column(nullable = false, length = 30)
   private OrderStatus status = OrderStatus.PENDING_SHIPMENT;
 
   @Enumerated(EnumType.STRING)
   @Column(nullable = false, length = 30)
-  private PaymentStatus paymentStatus = PaymentStatus.UNPAID;
+  private PaymentStatus paymentStatus = PaymentStatus.PAID;
 
   @Column(nullable = false, precision = 12, scale = 2)
   private BigDecimal totalAmount = BigDecimal.ZERO;
@@ -33,6 +38,11 @@ public class CommerceOrder {
   @Column(nullable = false, length = 40)
   private String phoneNumber;
 
+  @Column(length = 120)
+  private String paymentMethod;
+
+  private Instant paidAt;
+
   @Column(nullable = false)
   private Instant createdAt = Instant.now();
 
@@ -42,28 +52,45 @@ public class CommerceOrder {
   @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
   private List<OrderLine> lines = new ArrayList<>();
 
+  @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+  private List<AfterSalesCase> afterSalesCases = new ArrayList<>();
+
   protected CommerceOrder() {
   }
 
-  public CommerceOrder(Long userId, String shippingAddress, String phoneNumber) {
+  public CommerceOrder(Long userId, Long merchantId, String merchantName, String shippingAddress, String phoneNumber, String paymentMethod) {
     this.userId = userId;
+    this.merchantId = merchantId;
+    this.merchantName = merchantName == null || merchantName.isBlank() ? "Smart CommerceOps" : merchantName;
     this.shippingAddress = shippingAddress;
     this.phoneNumber = phoneNumber;
+    this.paymentMethod = paymentMethod;
+    this.paidAt = createdAt;
   }
 
   public Long getId() { return id; }
   public Long getUserId() { return userId; }
+  public Long getMerchantId() { return merchantId; }
+  public String getMerchantName() { return merchantName; }
   public OrderStatus getStatus() { return status; }
   public PaymentStatus getPaymentStatus() { return paymentStatus; }
   public BigDecimal getTotalAmount() { return totalAmount; }
   public String getShippingAddress() { return shippingAddress; }
   public String getPhoneNumber() { return phoneNumber; }
+  public String getPaymentMethod() { return paymentMethod; }
+  public Instant getPaidAt() { return paidAt; }
   public Instant getCreatedAt() { return createdAt; }
   public Instant getUpdatedAt() { return updatedAt; }
   public List<OrderLine> getLines() { return lines; }
+  public List<AfterSalesCase> getAfterSalesCases() { return afterSalesCases; }
 
   public void addLine(Long productId, String productName, int quantity, BigDecimal unitPrice) {
-    OrderLine line = new OrderLine(this, productId, productName, quantity, unitPrice);
+    addLine(productId, productName, quantity, unitPrice, null, null, null);
+  }
+
+  public void addLine(Long productId, String productName, int quantity, BigDecimal unitPrice,
+                      String imageUrls, Long merchantId, String merchantName) {
+    OrderLine line = new OrderLine(this, productId, productName, quantity, unitPrice, imageUrls, merchantId, merchantName);
     lines.add(line);
     totalAmount = totalAmount.add(unitPrice.multiply(BigDecimal.valueOf(quantity)));
   }
@@ -81,6 +108,14 @@ public class CommerceOrder {
       throw new IllegalStateException("Only pending receipt orders can be completed");
     }
     status = OrderStatus.COMPLETED;
+    updatedAt = Instant.now();
+  }
+
+  public void requestAfterSales() {
+    if (status == OrderStatus.AFTER_SALES) {
+      throw new IllegalStateException("Order is already in after-sales");
+    }
+    status = OrderStatus.AFTER_SALES;
     updatedAt = Instant.now();
   }
 }

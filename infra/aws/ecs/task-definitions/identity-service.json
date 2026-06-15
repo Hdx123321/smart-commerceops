@@ -1,0 +1,40 @@
+{
+  "family": "identity-service",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "__ECS_EXECUTION_ROLE_ARN__",
+  "taskRoleArn": "__ECS_TASK_ROLE_ARN__",
+  "containerDefinitions": [
+    {
+      "name": "identity-service",
+      "image": "__IMAGE__",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8092,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "JAVA_TOOL_OPTIONS", "value": "-XX:MaxRAMPercentage=75" },
+        { "name": "SPRING_DATASOURCE_URL", "value": "jdbc:mysql://__DB_HOST__:3306/identity_db?useSSL=true&allowPublicKeyRetrieval=false" },
+        { "name": "SPRING_DATASOURCE_USERNAME", "value": "__DB_USERNAME__" }
+      ],
+      "secrets": [
+        { "name": "SPRING_DATASOURCE_PASSWORD", "valueFrom": "__DB_PASSWORD_SECRET_ARN__" },
+        { "name": "JWT_SECRET", "valueFrom": "__JWT_SECRET_ARN__" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/smart-commerceops/identity-service",
+          "awslogs-region": "__AWS_REGION__",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}

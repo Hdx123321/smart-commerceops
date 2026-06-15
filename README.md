@@ -22,6 +22,7 @@ Smart CommerceOps is a modernized microservice version of the original Spring Bo
 | identity-service | 8092 | Registration, login, roles, JWT |
 | catalog-service | 8093 | Products, inventory, ratings |
 | order-service | 8094 | Cart, checkout, orders, status workflow |
+| chat-service | 8096 | Customer and merchant conversations |
 | analytics-service | 8095 | Dashboard metrics and restock recommendations |
 | frontend | 3000 | React TypeScript UI |
 | Prometheus | 9090 | Metrics scraping |
@@ -69,11 +70,12 @@ npm run dev
 
 ## Cloud Deployment Notes
 
-- Deploy frontend as a static site with `VITE_API_BASE_URL` pointing to the gateway.
-- Deploy each service as a container.
-- Use managed MySQL or separate schemas in one managed MySQL instance.
-- Use a managed Kafka-compatible service or replace Kafka with the cloud provider's queue/event bus for the first deployment.
-- Set `JWT_SECRET`, datasource credentials, and service URLs as environment variables.
+- Low-cost EC2 Docker Compose deployment guide: [docs/EC2_DOCKER_DEPLOYMENT_ZH.md](docs/EC2_DOCKER_DEPLOYMENT_ZH.md)
+- AWS portfolio deployment guide: [docs/AWS_DEPLOYMENT_ZH.md](docs/AWS_DEPLOYMENT_ZH.md)
+- Frontend uses AWS Amplify Hosting with `VITE_API_BASE_URL` pointing to the HTTPS gateway domain.
+- Backend services deploy as ECS Fargate containers with images stored in ECR.
+- RDS MySQL hosts the service schemas; ElastiCache Redis backs catalog caching.
+- GitHub Actions workflow `.github/workflows/aws-backend-deploy.yml` builds images, pushes to ECR, and updates ECS services.
 
 ## Internship Position Mapping
 

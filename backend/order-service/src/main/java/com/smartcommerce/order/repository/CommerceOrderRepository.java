@@ -6,5 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface CommerceOrderRepository extends JpaRepository<CommerceOrder, Long> {
   List<CommerceOrder> findByUserIdOrderByCreatedAtDesc(Long userId);
+  List<CommerceOrder> findByMerchantIdOrderByCreatedAtDesc(Long merchantId);
   List<CommerceOrder> findAllByOrderByCreatedAtDesc();
 }

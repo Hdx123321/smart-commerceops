@@ -7,11 +7,17 @@ import java.util.Comparator;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClient;
 
 @RestController
 public class AnalyticsController {
+  private static final String USER_ID_HEADER = "X-User-Id";
+  private static final String USER_ROLE_HEADER = "X-User-Role";
+  private static final String MERCHANT_ID_HEADER = "X-Merchant-Id";
+
   private final RestClient restClient;
   private final String catalogUrl;
   private final String orderUrl;
@@ -25,13 +31,23 @@ public class AnalyticsController {
   }
 
   @GetMapping("/analytics/dashboard")
-  public DashboardSummary dashboard() {
+  public DashboardSummary dashboard(@RequestParam(required = false) Long merchantId,
+                                    @RequestHeader(name = USER_ID_HEADER, required = false) String currentUserId,
+                                    @RequestHeader(name = USER_ROLE_HEADER, required = false) String currentRole,
+                                    @RequestHeader(name = MERCHANT_ID_HEADER, required = false) String currentMerchantId) {
+    if ("MERCHANT".equals(currentRole)) {
+      merchantId = currentMerchantId == null || currentMerchantId.isBlank()
+          ? Long.parseLong(currentUserId)
+          : Long.parseLong(currentMerchantId);
+    }
+    String productPath = merchantId == null ? "/products" : "/admin/products?merchantId=" + merchantId;
+    String orderPath = merchantId == null ? "/orders" : "/orders?merchantId=" + merchantId;
     List<ProductSnapshot> products = Arrays.asList(restClient.get()
-        .uri(catalogUrl + "/products")
+        .uri(catalogUrl + productPath)
         .retrieve()
         .body(ProductSnapshot[].class));
     List<OrderSnapshot> orders = Arrays.asList(restClient.get()
-        .uri(orderUrl + "/orders")
+        .uri(orderUrl + orderPath)
         .retrieve()
         .body(OrderSnapshot[].class));
 

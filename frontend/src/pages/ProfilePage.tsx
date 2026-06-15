@@ -100,6 +100,33 @@ export default function ProfilePage({ user, onProfileUpdated }: Props) {
                 <Input placeholder="e.g. Card, PayNow, cash on delivery" />
               </Form.Item>
             </Col>
+            {user.role === 'MERCHANT' && (
+              <>
+                <Col xs={24}>
+                  <Typography.Title level={4}>Merchant Profile</Typography.Title>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item name="merchantName" label="Merchant name" rules={[{ required: true, max: 160 }]}>
+                    <Input />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item name="merchantContact" label="Merchant contact" rules={[{ max: 160 }]}>
+                    <Input />
+                  </Form.Item>
+                </Col>
+                <Col xs={24}>
+                  <Form.Item name="merchantDescription" label="Merchant description" rules={[{ max: 800 }]}>
+                    <Input.TextArea rows={3} />
+                  </Form.Item>
+                </Col>
+                <Col xs={24}>
+                  <Form.Item name="merchantAddress" label="Merchant address" rules={[{ max: 300 }]}>
+                    <Input.TextArea rows={2} />
+                  </Form.Item>
+                </Col>
+              </>
+            )}
           </Row>
           <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={updateProfile.isPending}>
             Save profile
