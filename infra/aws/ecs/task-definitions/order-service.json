@@ -1,0 +1,40 @@
+{
+  "family": "order-service",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "__ECS_EXECUTION_ROLE_ARN__",
+  "taskRoleArn": "__ECS_TASK_ROLE_ARN__",
+  "containerDefinitions": [
+    {
+      "name": "order-service",
+      "image": "__IMAGE__",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8094,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "JAVA_TOOL_OPTIONS", "value": "-XX:MaxRAMPercentage=75" },
+        { "name": "SPRING_DATASOURCE_URL", "value": "jdbc:mysql://__DB_HOST__:3306/order_db?useSSL=true&allowPublicKeyRetrieval=false" },
+        { "name": "SPRING_DATASOURCE_USERNAME", "value": "__DB_USERNAME__" },
+        { "name": "CATALOG_SERVICE_URL", "value": "http://catalog-service.commerceops.local:8093" }
+      ],
+      "secrets": [
+        { "name": "SPRING_DATASOURCE_PASSWORD", "valueFrom": "__DB_PASSWORD_SECRET_ARN__" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/smart-commerceops/order-service",
+          "awslogs-region": "__AWS_REGION__",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}

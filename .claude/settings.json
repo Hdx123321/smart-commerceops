@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__sense__sense_search",
+      "mcp__sense__sense_graph",
+      "mcp__sense__sense_blast",
+      "mcp__sense__sense_conventions",
+      "mcp__sense__sense_status",
+      "mcp__weknora__list_knowledge_bases",
+      "mcp__weknora__list_knowledge",
+      "mcp__weknora__get_knowledge",
+      "mcp__weknora__get_knowledge_base",
+      "mcp__weknora__list_models",
+      "mcp__weknora__get_model",
+      "mcp__weknora__list_sessions",
+      "mcp__weknora__get_session",
+      "mcp__weknora__list_agents",
+      "mcp__weknora__get_agent",
+      "mcp__weknora__list_tenants",
+      "mcp__weknora__hybrid_search",
+      "mcp__weknora__wiki_index_view",
+      "mcp__weknora__wiki_read_page",
+      "mcp__weknora__wiki_search",
+      "mcp__weknora__list_chunks",
+      "Bash(docker compose ps)",
+      "Bash(docker compose logs *)"
+    ]
+  }
+}

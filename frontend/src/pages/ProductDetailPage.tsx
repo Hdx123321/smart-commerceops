@@ -191,8 +191,8 @@ export default function ProductDetailPage({ user }: Props) {
                   </div>
                 )}
                 <Space>
-                  <Tag>{product.category}</Tag>
-                  <Tag color={product.stockQuantity <= product.lowStockThreshold ? 'red' : 'green'}>
+                  <Tag className="pill-tag-mint">{product.category}</Tag>
+                  <Tag className={product.stockQuantity <= product.lowStockThreshold ? 'pill-tag-shade' : 'pill-tag-mint'}>
                     {product.stockQuantity <= product.lowStockThreshold ? 'Low stock' : 'In stock'}
                   </Tag>
                 </Space>

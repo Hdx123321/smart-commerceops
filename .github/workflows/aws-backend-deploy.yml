@@ -1,0 +1,124 @@
+name: Deploy Backend to AWS ECS
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [integration]
+    paths:
+      - "backend/**"
+      - "infra/aws/**"
+      - ".github/workflows/aws-backend-deploy.yml"
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ECR_NAMESPACE: smart-commerceops
+  ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+  ECS_EXECUTION_ROLE_ARN: ${{ vars.ECS_EXECUTION_ROLE_ARN }}
+  ECS_TASK_ROLE_ARN: ${{ vars.ECS_TASK_ROLE_ARN }}
+  DB_HOST: ${{ vars.DB_HOST }}
+  DB_USERNAME: ${{ vars.DB_USERNAME }}
+  REDIS_HOST: ${{ vars.REDIS_HOST }}
+  APP_DOMAIN: ${{ vars.APP_DOMAIN }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - run: mvn test
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: gateway-service
+            port: 8090
+            dockerfile: gateway-service/Dockerfile
+            task_definition: infra/aws/ecs/task-definitions/gateway-service.json
+          - service: identity-service
+            port: 8092
+            dockerfile: identity-service/Dockerfile
+            task_definition: infra/aws/ecs/task-definitions/identity-service.json
+          - service: catalog-service
+            port: 8093
+            dockerfile: catalog-service/Dockerfile
+            task_definition: infra/aws/ecs/task-definitions/catalog-service.json
+          - service: order-service
+            port: 8094
+            dockerfile: order-service/Dockerfile
+            task_definition: infra/aws/ecs/task-definitions/order-service.json
+          - service: chat-service
+            port: 8096
+            dockerfile: chat-service/Dockerfile
+            task_definition: infra/aws/ecs/task-definitions/chat-service.json
+          - service: analytics-service
+            port: 8095
+            dockerfile: analytics-service/Dockerfile
+            task_definition: infra/aws/ecs/task-definitions/analytics-service.json
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+          SERVICE: ${{ matrix.service }}
+          DOCKERFILE: ${{ matrix.dockerfile }}
+        run: |
+          IMAGE_URI="$ECR_REGISTRY/$ECR_NAMESPACE/$SERVICE:$IMAGE_TAG"
+          docker build -t "$IMAGE_URI" -f "backend/$DOCKERFILE" backend
+          docker push "$IMAGE_URI"
+          echo "image=$IMAGE_URI" >> "$GITHUB_OUTPUT"
+
+      - name: Render deployment variables
+        env:
+          TASK_TEMPLATE: ${{ matrix.task_definition }}
+          TASK_RENDERED: ${{ runner.temp }}/${{ matrix.service }}.json
+          DB_PASSWORD_SECRET_ARN: ${{ secrets.DB_PASSWORD_SECRET_ARN }}
+          JWT_SECRET_ARN: ${{ secrets.JWT_SECRET_ARN }}
+        run: |
+          python infra/aws/scripts/render_task_template.py "$TASK_TEMPLATE" "$TASK_RENDERED"
+          echo "TASK_RENDERED=$TASK_RENDERED" >> "$GITHUB_ENV"
+
+      - name: Render container image
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ env.TASK_RENDERED }}
+          container-name: ${{ matrix.service }}
+          image: ${{ steps.build-image.outputs.image }}
+
+      - name: Deploy ECS service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ matrix.service }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
