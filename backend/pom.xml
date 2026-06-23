@@ -21,8 +21,10 @@
     <module>identity-service</module>
     <module>catalog-service</module>
     <module>order-service</module>
+    <module>payment-service</module>
     <module>chat-service</module>
     <module>analytics-service</module>
+    <module>assistant-service</module>
     <module>gateway-service</module>
   </modules>
 

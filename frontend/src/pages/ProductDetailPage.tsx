@@ -1,6 +1,7 @@
 import { DeleteOutlined, MessageOutlined, PlusOutlined, ShoppingCartOutlined } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Card, Carousel, Col, Descriptions, Form, Image, Input, InputNumber, List, Rate, Row, Skeleton, Space, Statistic, Tag, Typography, Upload, message } from 'antd';
+
 import type { UploadFile } from 'antd';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -126,10 +127,8 @@ export default function ProductDetailPage({ user }: Props) {
                               className="product-detail-image"
                               placeholder={<Skeleton.Image active />}
                               preview={false}
-                              onError={(e) => {
-                                const el = (e as React.SyntheticEvent<HTMLImageElement>).currentTarget;
-                                el.style.display = 'none';
-                              }}
+                              loading="lazy"
+                              fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect fill='%23f5f5f5' width='400' height='300'/%3E%3Ctext x='200' y='155' text-anchor='middle' fill='%23bfbfbf' font-size='18'%3ENo Image%3C/text%3E%3C/svg%3E"
                             />
                             {canManage && (
                               <Button

@@ -6,6 +6,18 @@ body {
 
 .app-shell {
   min-height: 100vh;
+  overflow: visible;
+}
+
+/* sticky 生效所需的祖先 overflow 重置 */
+html,
+body,
+#root,
+.ant-layout,
+.ant-layout-content,
+.ant-space,
+.ant-space-item {
+  overflow: visible !important;
 }
 
 .topbar {
@@ -14,29 +26,50 @@ body {
   gap: 24px;
   background: #ffffff;                              /* {nav-bar-light.backgroundColor} */
   border-bottom: 1px solid #e4e4e7;                 /* {colors.hairline-light} */
-  padding: 16px 24px;                               /* {nav-bar-light.padding} */
-  height: auto;
+  padding: 8px 24px 8px 44px;                        /* extra left padding for logo */
+  height: 110px;                                    /* fixed — logo overflows */
+  overflow: visible;
+  box-sizing: border-box;
 }
 
 .brand {
   flex: 0 0 auto;
-  font-size: 16px;
-  font-weight: 550;                                 /* {typography.body-strong} */
-  letter-spacing: 0;
+  position: relative;
+  height: 36px;                                     /* match nav items height */
+  display: flex;
+  align-items: center;
+}
+
+.brand-logo {
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 112px;
+  height: 112px;
+  object-fit: contain;
 }
 
 .nav {
   flex: 1;
   min-width: 0;
   border-bottom: 0;
+  margin-left: 100px;
+  font-size: 20px;
 }
 
 .content {
   padding: 24px;
+  overflow: visible;
+}
+
+.ant-layout-content {
+  overflow: visible;
 }
 
 .page {
   width: 100%;
+  overflow: visible;
 }
 
 .page-heading {
@@ -69,15 +102,32 @@ body {
   margin-bottom: 8px;
 }
 
-.product-image {
+.product-image-fixed {
   width: 100%;
   height: 180px;
-  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  overflow: hidden;
+}
+.product-image-fixed .ant-image-img {
+  width: 100%;
+  height: 180px;
+  object-fit: contain;       /* 等比缩放完整显示，不足处留白（由父级 #fff 背景填充） */
 }
 
 .product-image-skeleton {
   width: 100% !important;
   height: 180px !important;
+}
+
+.product-image-placeholder {
+  width: 100%;
+  height: 180px;
+  display: grid;
+  place-items: center;
+  background: #f5f5f5;
 }
 
 .product-detail-image {
@@ -86,6 +136,244 @@ body {
   object-fit: cover;
   border-radius: 8px;                               /* {rounded.md} */
   background: #f5f5f5;
+}
+
+/* ── 统一高度的产品卡片 ── */
+.product-card-fixed {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.product-card-fixed .ant-card-cover {
+  flex: 0 0 auto;
+}
+.product-card-fixed .ant-card-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+.product-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.product-card-desc {
+  flex: 0 0 auto;
+  margin-bottom: 8px !important;
+}
+.product-card-merchant {
+  flex: 0 0 auto;
+  margin-bottom: 12px;
+}
+
+/* ── 产品卡片内统计项（替代 antd Statistic） ── */
+.product-stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.product-stat-label {
+  font-size: 12px;
+}
+.product-stat-value {
+  font-size: 16px;
+  color: #000000;
+}
+
+/* ── Slogan 艺术字 + 动态背景 ── */
+.slogan-hero {
+  position: relative;
+  text-align: center;
+  padding: 24px 16px 12px;
+  overflow: hidden;
+}
+
+/* 动态流光背景 */
+.slogan-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 80% 60% at 50% 50%,
+    rgba(244, 174, 14, 0.55) 0%,     /* amber glow — thicker */
+    rgba(251, 251, 245, 0) 70%         /* fade to canvas cream */
+  );
+  animation: sloganGlow 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* 第二层光晕 — 偏移相位制造层次感 */
+.slogan-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 50% 40% at 30% 60%,
+    rgba(244, 174, 14, 0.40) 0%,
+    rgba(251, 251, 245, 0) 70%
+  );
+  animation: sloganGlowAlt 5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes sloganGlow {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.08); }
+}
+
+@keyframes sloganGlowAlt {
+  0%, 100% { opacity: 0.4; transform: scale(1.05) translateX(-10px); }
+  50%      { opacity: 0.9; transform: scale(1)    translateX(5px); }
+}
+
+/* 艺术字主体 */
+.slogan-text {
+  position: relative;
+  z-index: 1;
+  font-family: 'Inter Variable', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 36px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  margin: 0;
+  color: transparent;
+  background: linear-gradient(
+    135deg,
+    #4a4a4a 0%,
+    #1a1a1a 30%,
+    #4a7c5a 50%,
+    #1a1a1a 70%,
+    #4a4a4a 100%
+  );
+  background-size: 200% 200%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: sloganShimmer 6s ease-in-out infinite;
+}
+
+@keyframes sloganShimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+
+/* ── 显眼的大搜索栏 ── */
+.search-bar-hero {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0;
+}
+.search-bar-input {
+  max-width: 680px;
+}
+.search-bar-input .ant-input {
+  border-radius: 9999px;
+  padding-left: 20px;
+  font-size: 15px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  transition: box-shadow 0.25s ease;
+}
+.search-bar-input .ant-input:focus,
+.search-bar-input .ant-input:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+}
+
+/* ── 分类图标行 + 吸顶 ── */
+.category-icon-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 24px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(251, 251, 245, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  margin: 0 -24px;       /* 抵消 .content 的 padding，撑满宽度 */
+}
+
+.category-icon-center {
+  display: flex;
+  gap: 32px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.category-icon-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  opacity: 0.65;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.category-icon-item:hover {
+  opacity: 0.9;
+  transform: translateY(-2px);
+}
+.category-icon-item--active {
+  opacity: 1;
+}
+.category-icon-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.category-icon-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #333;
+  white-space: nowrap;
+}
+.category-filter-btn {
+  position: absolute;
+  right: 24px;
+  flex-shrink: 0;
+}
+
+.category-ai-btn {
+  position: absolute;
+  left: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  user-select: none;
+  opacity: 0.8;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 2;
+}
+.category-ai-btn:hover {
+  opacity: 1;
+  transform: translateY(-2px);
+}
+
+.category-ai-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.35);
+}
+
+.category-ai-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #667eea;
+  white-space: nowrap;
 }
 
 .product-image-carousel {
@@ -291,10 +579,10 @@ body {
 }
 
 /* Product image hover: subtle zoom */
-.product-image {
+.product-image-fixed {
   transition: transform 0.35s ease;
 }
-.product-image:hover {
+.product-image-fixed:hover {
   transform: scale(1.04);
 }
 
@@ -340,6 +628,16 @@ body {
   }
 }
 
+/* --- React Bits page titles --- */
+.page-title-blur {
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1.28;
+  letter-spacing: 0.42px;
+  margin: 0 0 4px 0;
+  color: #000000;
+}
+
 @media (max-width: 640px) {
   .cart-item-row {
     grid-template-columns: 28px minmax(0, 1fr);
@@ -353,5 +651,102 @@ body {
 
   .chat-message {
     max-width: 100%;
+  }
+}
+
+/* ── AI Assistant Drawer ── */
+
+.assistant-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  background: #fafafa;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.assistant-message {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.assistant-message.user {
+  flex-direction: row-reverse;
+}
+
+.assistant-message-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  flex-shrink: 0;
+}
+
+.assistant-message.user .assistant-message-avatar {
+  background: #1677ff;
+  color: #fff;
+  border-color: #1677ff;
+}
+
+.assistant-message.assistant .assistant-message-avatar {
+  background: #f6ffed;
+  color: #52c41a;
+  border-color: #b7eb8f;
+}
+
+.assistant-message-bubble {
+  max-width: 85%;
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.assistant-message.user .assistant-message-bubble {
+  background: #1677ff;
+  color: #fff;
+}
+
+.assistant-cursor {
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.assistant-input {
+  padding: 12px 16px;
+  border-top: 1px solid #f0f0f0;
+  background: #fff;
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.assistant-input .ant-typography {
+  flex: 1;
+}
+
+.assistant-recommendation-card {
+  margin-bottom: 10px;
+}
+
+.assistant-recommendation-card .ant-card-body {
+  padding: 10px;
+}
+
+/* mobile fullscreen drawer */
+@media (max-width: 576px) {
+  .assistant-drawer .ant-drawer-content-wrapper {
+    width: 100% !important;
   }
 }

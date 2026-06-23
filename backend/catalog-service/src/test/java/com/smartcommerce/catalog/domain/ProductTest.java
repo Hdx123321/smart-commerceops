@@ -30,4 +30,18 @@ class ProductTest {
     assertThatThrownBy(() -> productClass.getMethod("reserve", int.class).invoke(product, 4))
         .hasRootCauseInstanceOf(IllegalStateException.class);
   }
+
+  @Test
+  void releaseReservationRestoresInventoryAndSalesCount() throws Exception {
+    Class<?> productClass = Class.forName("com.smartcommerce.catalog.domain.Product");
+    Object product = productClass
+        .getConstructor(String.class, String.class, String.class, BigDecimal.class, int.class, int.class, String.class)
+        .newInstance("Coffee", "Groceries", "Beans", BigDecimal.valueOf(12.50), 10, 3, null);
+
+    productClass.getMethod("reserve", int.class).invoke(product, 4);
+    productClass.getMethod("releaseReservation", int.class).invoke(product, 4);
+
+    assertThat(productClass.getMethod("getStockQuantity").invoke(product)).isEqualTo(10);
+    assertThat(productClass.getMethod("getSalesCount").invoke(product)).isEqualTo(0);
+  }
 }

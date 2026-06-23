@@ -1,5 +1,6 @@
 import {
   CheckCircleOutlined,
+  CreditCardOutlined,
   MessageOutlined,
   ReloadOutlined,
   RollbackOutlined,
@@ -10,7 +11,7 @@ import { Alert, Button, Card, Descriptions, Empty, Form, Image, Input, Modal, Se
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useState } from 'react';
-import { apiErrorMessage, chatApi, orderApi } from '../api/client';
+import { apiErrorMessage, chatApi, orderApi, paymentApi } from '../api/client';
 import type { AfterSalesType, Order, OrderLine, UserProfile } from '../types';
 
 interface Props {
@@ -31,17 +32,21 @@ interface AfterSalesFormValues {
 }
 
 const statusLabels: Record<Order['status'], string> = {
+  PENDING_PAYMENT: '待付款',
   PENDING_SHIPMENT: '待发货',
   PENDING_RECEIPT: '待收货',
   COMPLETED: '已完成',
-  AFTER_SALES: '退款/售后'
+  AFTER_SALES: '退款/售后',
+  CANCELLED: '已取消'
 };
 
 const statusColors: Record<Order['status'], string> = {
+  PENDING_PAYMENT: 'gold',
   PENDING_SHIPMENT: 'orange',
   PENDING_RECEIPT: 'blue',
   COMPLETED: 'green',
-  AFTER_SALES: 'purple'
+  AFTER_SALES: 'purple',
+  CANCELLED: 'default'
 };
 
 const afterSalesTypeLabels: Record<AfterSalesType, string> = {
@@ -58,7 +63,7 @@ function formatDate(value?: string) {
 function groupLines(lines: OrderLine[]): MerchantOrderGroup[] {
   const byMerchant = new Map<string, MerchantOrderGroup>();
   lines.forEach((line) => {
-    const merchantName = line.merchantName || 'Smart CommerceOps';
+    const merchantName = line.merchantName || 'DailyHaven';
     const key = line.merchantId ? `merchant-${line.merchantId}` : merchantName;
     const group = byMerchant.get(key) ?? { key, merchantName, lines: [] };
     group.lines.push(line);
@@ -68,9 +73,11 @@ function groupLines(lines: OrderLine[]): MerchantOrderGroup[] {
 }
 
 function statusStep(status: Order['status']) {
+  if (status === 'PENDING_PAYMENT') return 0;
   if (status === 'PENDING_SHIPMENT') return 1;
   if (status === 'PENDING_RECEIPT') return 2;
   if (status === 'COMPLETED') return 3;
+  if (status === 'CANCELLED') return 0;
   return 1;
 }
 
@@ -103,6 +110,12 @@ export default function OrderDetailPage({ user }: Props) {
   const ownsMerchantOrder = !!order && user.role === 'MERCHANT' && order.merchantId === (user.merchantId ?? user.id);
   const canManageOrder = !!order && (user.role === 'ADMIN' || ownsMerchantOrder);
   const canViewOrder = !order || canManageOrder || order.userId === user.id;
+  const canPayOrder =
+    !!order &&
+    !isOpsUser &&
+    order.userId === user.id &&
+    order.status === 'PENDING_PAYMENT' &&
+    order.paymentStatus === 'UNPAID';
   const groups = order ? groupLines(order.lines) : [];
 
   const refreshOrders = () => {
@@ -127,6 +140,27 @@ export default function OrderDetailPage({ user }: Props) {
       messageApi.success('Receipt confirmed');
     },
     onError: (error) => messageApi.error(apiErrorMessage(error, 'Confirm receipt failed'))
+  });
+
+  const cancelOrder = useMutation({
+    mutationFn: orderApi.cancelOrder,
+    onSuccess: () => {
+      refreshOrders();
+      messageApi.success('Order cancelled');
+    },
+    onError: (error) => messageApi.error(apiErrorMessage(error, 'Cancel order failed'))
+  });
+
+  const createPayment = useMutation({
+    mutationFn: (sourceOrder: Order) => paymentApi.createPayment({
+      orderId: sourceOrder.id,
+      paymentMethod: sourceOrder.paymentMethod || user.paymentMethod || 'Simulated payment'
+    }),
+    onSuccess: () => {
+      refreshOrders();
+      messageApi.success('Payment successful');
+    },
+    onError: (error) => messageApi.error(apiErrorMessage(error, 'Payment failed'))
   });
 
   const createAfterSales = useMutation({
@@ -214,9 +248,9 @@ export default function OrderDetailPage({ user }: Props) {
 
             <Steps
               current={statusStep(order.status)}
-              status={order.status === 'AFTER_SALES' ? 'error' : 'process'}
+              status={order.status === 'AFTER_SALES' || order.status === 'CANCELLED' ? 'error' : 'process'}
               items={[
-                { title: '提交订单' },
+                { title: '待付款' },
                 { title: '待发货' },
                 { title: '待收货' },
                 { title: '已完成' }
@@ -224,6 +258,21 @@ export default function OrderDetailPage({ user }: Props) {
             />
 
             <div className="order-action-bar">
+              {canPayOrder && (
+                <Button
+                  type="primary"
+                  icon={<CreditCardOutlined />}
+                  loading={createPayment.isPending}
+                  onClick={() => createPayment.mutate(order)}
+                >
+                  Pay Now
+                </Button>
+              )}
+              {canPayOrder && (
+                <Button danger loading={cancelOrder.isPending} onClick={() => cancelOrder.mutate(order.id)}>
+                  Cancel order
+                </Button>
+              )}
               {!isOpsUser && order.status === 'PENDING_RECEIPT' && (
                 <Button
                   type="primary"
@@ -244,7 +293,7 @@ export default function OrderDetailPage({ user }: Props) {
                   联系商家
                 </Button>
               )}
-              {!isOpsUser && order.status !== 'AFTER_SALES' && (
+              {!isOpsUser && order.status !== 'AFTER_SALES' && order.status !== 'PENDING_PAYMENT' && (
                 <Button icon={<RollbackOutlined />} onClick={openAfterSales}>
                   退款/售后
                 </Button>
@@ -296,7 +345,8 @@ export default function OrderDetailPage({ user }: Props) {
           <Card title={isOpsUser ? 'Customer & Payment' : '订单信息'}>
             <Descriptions column={1} bordered size="small">
               <Descriptions.Item label="订单编号">#{order.id}</Descriptions.Item>
-              <Descriptions.Item label="付款时间">{formatDate(order.paidAt ?? order.createdAt)}</Descriptions.Item>
+              <Descriptions.Item label="Payment status">{order.paymentStatus}</Descriptions.Item>
+              <Descriptions.Item label="付款时间">{order.paymentStatus === 'PAID' ? formatDate(order.paidAt) : 'Unpaid'}</Descriptions.Item>
               <Descriptions.Item label="收货信息">
                 <Space>
                   <ShoppingOutlined />
@@ -323,11 +373,14 @@ export default function OrderDetailPage({ user }: Props) {
                     <div className="cart-item-row" key={`${line.productId}-${line.productName}`}>
                       <div />
                       <Link to={`/products/${line.productId}`} className="cart-product-link">
-                        {line.imageUrls?.[0] ? (
-                          <Image src={line.imageUrls[0]} alt={line.productName} className="cart-product-image" preview={false} />
-                        ) : (
-                          <div className="cart-product-image cart-product-image-empty">No image</div>
-                        )}
+                        <Image
+                          src={line.imageUrls?.[0] || ''}
+                          alt={line.productName}
+                          className="cart-product-image"
+                          preview={false}
+                          loading="lazy"
+                          fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72'%3E%3Crect fill='%23f5f5f5' width='72' height='72'/%3E%3Ctext x='36' y='40' text-anchor='middle' fill='%23bfbfbf' font-size='10'%3ENo img%3C/text%3E%3C/svg%3E"
+                        />
                         <div className="cart-product-info">
                           <Typography.Text strong>{line.productName}</Typography.Text>
                           <Typography.Text type="secondary">Unit price ${Number(line.unitPrice).toFixed(2)}</Typography.Text>

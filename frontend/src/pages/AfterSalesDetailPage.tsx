@@ -387,11 +387,14 @@ export default function AfterSalesDetailPage({ user }: Props) {
                   <div className="cart-item-row" key={`${line.productId}-${line.productName}`}>
                     <div />
                     <Link to={`/products/${line.productId}`} className="cart-product-link">
-                      {line.imageUrls?.[0] ? (
-                        <Image src={line.imageUrls[0]} alt={line.productName} className="cart-product-image" preview={false} />
-                      ) : (
-                        <div className="cart-product-image cart-product-image-empty">No image</div>
-                      )}
+                      <Image
+                        src={line.imageUrls?.[0] || ''}
+                        alt={line.productName}
+                        className="cart-product-image"
+                        preview={false}
+                        loading="lazy"
+                        fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72'%3E%3Crect fill='%23f5f5f5' width='72' height='72'/%3E%3Ctext x='36' y='40' text-anchor='middle' fill='%23bfbfbf' font-size='10'%3ENo img%3C/text%3E%3C/svg%3E"
+                      />
                       <div className="cart-product-info">
                         <Typography.Text strong>{line.productName}</Typography.Text>
                         <Typography.Text type="secondary">Unit price ${Number(line.unitPrice).toFixed(2)}</Typography.Text>

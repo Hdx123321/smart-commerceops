@@ -1,5 +1,6 @@
 import axios from 'axios';
 import type {
+  AssistantRecommendRequest,
   AuthResponse,
   AfterSalesCase,
   AfterSalesRequest,
@@ -9,6 +10,8 @@ import type {
   CreateConversationRequest,
   DashboardSummary,
   Order,
+  Payment,
+  PageResponse,
   Product,
   ProductRequest,
   ProductReview,
@@ -21,6 +24,19 @@ import type {
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8090';
 const TOKEN_KEY = 'smart-commerceops-token';
 const USER_KEY = 'smart-commerceops-user';
+
+function tokenIsExpired(token: string) {
+  try {
+    const payloadPart = token.split('.')[1];
+    if (!payloadPart) return true;
+    const base64 = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+    const payload = JSON.parse(atob(padded)) as { exp?: number };
+    return typeof payload.exp !== 'number' || payload.exp <= Math.floor(Date.now() / 1000);
+  } catch {
+    return true;
+  }
+}
 
 export const api = axios.create({
   baseURL: API_BASE_URL
@@ -57,6 +73,19 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      clearSession();
+      if (window.location.pathname !== '/login') {
+        window.location.assign('/login');
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export function saveSession(auth: AuthResponse) {
   localStorage.setItem(TOKEN_KEY, auth.accessToken);
   localStorage.setItem(USER_KEY, JSON.stringify(auth.user));
@@ -71,9 +100,23 @@ export function clearSession() {
   localStorage.removeItem(USER_KEY);
 }
 
+export function accessToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
 export function currentUser(): UserProfile | null {
+  const token = localStorage.getItem(TOKEN_KEY);
   const raw = localStorage.getItem(USER_KEY);
-  return raw ? JSON.parse(raw) : null;
+  if (!token || !raw || tokenIsExpired(token)) {
+    clearSession();
+    return null;
+  }
+  try {
+    return JSON.parse(raw) as UserProfile;
+  } catch {
+    clearSession();
+    return null;
+  }
 }
 
 export const authApi = {
@@ -97,12 +140,12 @@ export const authApi = {
 };
 
 export const catalogApi = {
-  products: async (params?: { category?: string; search?: string }) => {
-    const { data } = await api.get<Product[]>('/products', { params });
+  products: async (params?: { category?: string; search?: string; page?: number; size?: number }) => {
+    const { data } = await api.get<PageResponse<Product>>('/products', { params });
     return data;
   },
-  adminProducts: async (params?: { merchantId?: number }) => {
-    const { data } = await api.get<Product[]>('/admin/products', { params });
+  adminProducts: async (params?: { merchantId?: number; page?: number; size?: number }) => {
+    const { data } = await api.get<PageResponse<Product>>('/admin/products', { params });
     return data;
   },
   product: async (productId: number) => {
@@ -156,8 +199,8 @@ export const orderApi = {
     const { data } = await api.get<Order>(`/orders/${orderId}`);
     return data;
   },
-  orders: async (params?: { userId?: number; merchantId?: number }) => {
-    const { data } = await api.get<Order[]>('/orders', { params });
+  orders: async (params?: { userId?: number; merchantId?: number; status?: Order['status']; page?: number; size?: number }) => {
+    const { data } = await api.get<PageResponse<Order>>('/orders', { params });
     return data;
   },
   shipOrder: async (orderId: number) => {
@@ -168,6 +211,10 @@ export const orderApi = {
     const { data } = await api.put<Order>(`/orders/${orderId}/confirm-receipt`);
     return data;
   },
+  cancelOrder: async (orderId: number) => {
+    const { data } = await api.put<Order>(`/orders/${orderId}/cancel`);
+    return data;
+  },
   createAfterSales: async (orderId: number, payload: AfterSalesRequest) => {
     const { data } = await api.post<AfterSalesCase>(`/orders/${orderId}/after-sales`, payload);
     return data;
@@ -176,8 +223,8 @@ export const orderApi = {
     const { data } = await api.get<AfterSalesCase[]>(`/orders/${orderId}/after-sales`);
     return data;
   },
-  afterSalesCases: async (params?: { userId?: number; merchantId?: number }) => {
-    const { data } = await api.get<AfterSalesCase[]>('/after-sales', { params });
+  afterSalesCases: async (params?: { userId?: number; merchantId?: number; page?: number; size?: number }) => {
+    const { data } = await api.get<PageResponse<AfterSalesCase>>('/after-sales', { params });
     return data;
   },
   afterSalesCase: async (caseId: number) => {
@@ -214,6 +261,13 @@ export const orderApi = {
   }
 };
 
+export const paymentApi = {
+  createPayment: async (payload: { orderId: number; paymentMethod?: string }) => {
+    const { data } = await api.post<Payment>('/payments', payload);
+    return data;
+  }
+};
+
 export const analyticsApi = {
   dashboard: async (params?: { merchantId?: number }) => {
     const { data } = await api.get<DashboardSummary>('/analytics/dashboard', { params });
@@ -226,16 +280,16 @@ export const chatApi = {
     const { data } = await api.post<Conversation>('/chat/conversations', payload);
     return data;
   },
-  conversations: async (params?: { customerId?: number; merchantId?: number }) => {
-    const { data } = await api.get<Conversation[]>('/chat/conversations', { params });
+  conversations: async (params?: { customerId?: number; merchantId?: number; page?: number; size?: number }) => {
+    const { data } = await api.get<PageResponse<Conversation>>('/chat/conversations', { params });
     return data;
   },
   conversation: async (conversationId: number, readerId?: number) => {
     const { data } = await api.get<Conversation>(`/chat/conversations/${conversationId}`, { params: { readerId } });
     return data;
   },
-  messages: async (conversationId: number) => {
-    const { data } = await api.get<ChatMessage[]>(`/chat/conversations/${conversationId}/messages`);
+  messages: async (conversationId: number, params?: { beforeId?: number; limit?: number }) => {
+    const { data } = await api.get<ChatMessage[]>(`/chat/conversations/${conversationId}/messages`, { params });
     return data;
   },
   sendMessage: async (conversationId: number, payload: SendMessageRequest) => {
@@ -246,4 +300,15 @@ export const chatApi = {
     const { data } = await api.put<Conversation>(`/chat/conversations/${conversationId}/read`, null, { params: { readerId } });
     return data;
   }
+};
+
+export const assistantApi = {
+  /** POST /assistant/recommend/stream — returns a raw Response for SSE parsing */
+  recommendStream: async (request: AssistantRecommendRequest): Promise<Response> => {
+    return fetch(`${API_BASE_URL}/assistant/recommend/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    });
+  },
 };

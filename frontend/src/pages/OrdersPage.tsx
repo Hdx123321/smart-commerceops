@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Button, Card, Space, Table, Tabs, Tag, Typography } from 'antd';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { orderApi } from '../api/client';
 import type { Order, UserProfile } from '../types';
@@ -11,47 +12,67 @@ interface Props {
 type OrderTab = 'ALL' | Order['status'];
 
 const statusLabels: Record<Order['status'], string> = {
+  PENDING_PAYMENT: '待付款',
   PENDING_SHIPMENT: '待发货',
   PENDING_RECEIPT: '待收货',
   COMPLETED: '已完成',
-  AFTER_SALES: '退款/售后'
+  AFTER_SALES: '退款/售后',
+  CANCELLED: '已取消'
 };
 
 const statusColors: Record<Order['status'], string> = {
+  PENDING_PAYMENT: 'gold',
   PENDING_SHIPMENT: 'orange',
   PENDING_RECEIPT: 'blue',
   COMPLETED: 'green',
-  AFTER_SALES: 'purple'
+  AFTER_SALES: 'purple',
+  CANCELLED: 'default'
 };
 
 const tabs: Array<{ key: OrderTab; label: string }> = [
   { key: 'ALL', label: '全部' },
+  { key: 'PENDING_PAYMENT', label: '待付款' },
   { key: 'PENDING_SHIPMENT', label: '待发货' },
   { key: 'PENDING_RECEIPT', label: '待收货' },
   { key: 'COMPLETED', label: '已完成' },
-  { key: 'AFTER_SALES', label: '退款/售后' }
+  { key: 'AFTER_SALES', label: '退款/售后' },
+  { key: 'CANCELLED', label: '已取消' }
 ];
 
 export default function OrdersPage({ user }: Props) {
   const canManage = user.role === 'MERCHANT' || user.role === 'ADMIN';
+  const [activeTab, setActiveTab] = useState<OrderTab>('ALL');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const ordersQuery = useQuery({
-    queryKey: ['orders', user.role, user.role === 'MERCHANT' ? (user.merchantId ?? user.id) : user.id],
+    queryKey: ['orders', user.role, user.role === 'MERCHANT' ? (user.merchantId ?? user.id) : user.id, activeTab, page, pageSize],
     queryFn: () => {
-      if (user.role === 'ADMIN') return orderApi.orders();
-      if (user.role === 'MERCHANT') return orderApi.orders({ merchantId: user.merchantId ?? user.id });
-      return orderApi.orders({ userId: user.id });
+      const pagination = { page: page - 1, size: pageSize, ...(activeTab === 'ALL' ? {} : { status: activeTab }) };
+      if (user.role === 'ADMIN') return orderApi.orders(pagination);
+      if (user.role === 'MERCHANT') return orderApi.orders({ merchantId: user.merchantId ?? user.id, ...pagination });
+      return orderApi.orders({ userId: user.id, ...pagination });
     }
   });
 
-  const orders = ordersQuery.data ?? [];
+  const orders = ordersQuery.data?.content ?? [];
 
   const tableFor = (tab: OrderTab) => {
-    const rows = tab === 'ALL' ? orders : orders.filter((order) => order.status === tab);
+    const rows = tab === activeTab ? orders : [];
     return (
       <Table<Order>
         rowKey="id"
         dataSource={rows}
         loading={ordersQuery.isLoading}
+        pagination={{
+          current: page,
+          pageSize,
+          total: ordersQuery.data?.totalElements ?? rows.length,
+          showSizeChanger: true,
+          onChange: (nextPage, nextPageSize) => {
+            setPage(nextPage);
+            setPageSize(nextPageSize);
+          }
+        }}
         columns={[
           { title: 'Order', dataIndex: 'id', render: (id) => <Link to={`/orders/${id}`}>#{id}</Link> },
           ...(canManage ? [{ title: 'User', dataIndex: 'userId' }] : []),
@@ -86,7 +107,14 @@ export default function OrdersPage({ user }: Props) {
         </div>
       </div>
       <Card>
-        <Tabs defaultActiveKey="ALL" items={tabs.map((tab) => ({ ...tab, children: tableFor(tab.key) }))} />
+        <Tabs
+          activeKey={activeTab}
+          onChange={(key) => {
+            setActiveTab(key as OrderTab);
+            setPage(1);
+          }}
+          items={tabs.map((tab) => ({ ...tab, children: tableFor(tab.key) }))}
+        />
       </Card>
     </Space>
   );

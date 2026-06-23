@@ -6,8 +6,9 @@ spring:
     name: gateway-service
   cloud:
     gateway:
-      mvc:
-        routes:
+      server:
+        webmvc:
+          routes:
           - id: identity
             uri: ${IDENTITY_SERVICE_URL:http://localhost:8092}
             predicates:
@@ -28,6 +29,10 @@ spring:
             uri: ${ORDER_SERVICE_URL:http://localhost:8094}
             predicates:
               - Path=/cart/**,/checkout,/orders/**,/after-sales/**
+          - id: payments
+            uri: ${PAYMENT_SERVICE_URL:http://localhost:8098}
+            predicates:
+              - Path=/payments,/payments/**
           - id: chat
             uri: ${CHAT_SERVICE_URL:http://localhost:8096}
             predicates:
@@ -36,6 +41,10 @@ spring:
             uri: ${ANALYTICS_SERVICE_URL:http://localhost:8095}
             predicates:
               - Path=/analytics/**
+          - id: assistant
+            uri: ${ASSISTANT_SERVICE_URL:http://localhost:8097}
+            predicates:
+              - Path=/assistant/**
         globalcors:
           cors-configurations:
             '[/**]':

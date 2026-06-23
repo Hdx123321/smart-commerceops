@@ -15,6 +15,14 @@ spring:
   flyway:
     enabled: true
 
+security:
+  jwt:
+    secret: ${JWT_SECRET:dev-secret-change-me}
+
+chat:
+  websocket:
+    allowed-origins: ${CHAT_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
+
 management:
   endpoints:
     web:

@@ -1,10 +1,10 @@
-import { ShoppingOutlined } from '@ant-design/icons';
-import { Alert, Button, Card, Checkbox, Descriptions, Empty, Image, Space, Typography, message } from 'antd';
+import { CreditCardOutlined, ShoppingOutlined } from '@ant-design/icons';
+import { Alert, Button, Card, Checkbox, Descriptions, Empty, Image, Modal, Space, Typography, message } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { apiErrorMessage, authApi, orderApi } from '../api/client';
-import type { CartItem, UserProfile } from '../types';
+import { apiErrorMessage, authApi, orderApi, paymentApi } from '../api/client';
+import type { CartItem, Order, UserProfile } from '../types';
 
 interface Props {
   user: UserProfile;
@@ -22,6 +22,8 @@ export default function CartPage({ user }: Props) {
   const queryClient = useQueryClient();
   const [messageApi, contextHolder] = message.useMessage();
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [createdOrders, setCreatedOrders] = useState<Order[]>([]);
+  const [paidOrderIds, setPaidOrderIds] = useState<number[]>([]);
   const cartQuery = useQuery({ queryKey: ['cart', user.id], queryFn: () => orderApi.cart(user.id) });
   const profileQuery = useQuery({ queryKey: ['profile', user.id], queryFn: authApi.me, initialData: user });
 
@@ -35,7 +37,7 @@ export default function CartPage({ user }: Props) {
   const groups = useMemo<MerchantCartGroup[]>(() => {
     const byMerchant = new Map<string, MerchantCartGroup>();
     cartItems.forEach((item) => {
-      const merchantName = item.merchantName || 'Smart CommerceOps';
+      const merchantName = item.merchantName || 'DailyHaven';
       const key = item.merchantId ? `merchant-${item.merchantId}` : merchantName;
       const group = byMerchant.get(key) ?? { key, merchantName, items: [] };
       group.items.push(item);
@@ -59,13 +61,29 @@ export default function CartPage({ user }: Props) {
       paymentMethod: profile.paymentMethod,
       cartItemIds: selectedIds
     }),
-    onSuccess: () => {
+    onSuccess: (orders) => {
       setSelectedIds([]);
+      setCreatedOrders(orders);
+      setPaidOrderIds([]);
       queryClient.invalidateQueries({ queryKey: ['cart', user.id] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
-      messageApi.success('Order created');
+      messageApi.success('Order created. Complete payment now.');
     },
     onError: (error) => messageApi.error(apiErrorMessage(error, 'Checkout failed'))
+  });
+
+  const paymentMutation = useMutation({
+    mutationFn: (order: Order) => paymentApi.createPayment({
+      orderId: order.id,
+      paymentMethod: order.paymentMethod || profile.paymentMethod || 'Simulated payment'
+    }),
+    onSuccess: (payment) => {
+      setPaidOrderIds((current) => current.includes(payment.orderId) ? current : [...current, payment.orderId]);
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['order', payment.orderId] });
+      messageApi.success(`Order #${payment.orderId} paid`);
+    },
+    onError: (error) => messageApi.error(apiErrorMessage(error, 'Payment failed'))
   });
 
   function toggleAll(checked: boolean) {
@@ -135,11 +153,14 @@ export default function CartPage({ user }: Props) {
                     <div className="cart-item-row" key={item.id}>
                       <Checkbox checked={selectedSet.has(item.id)} onChange={(event) => toggleItem(item.id, event.target.checked)} />
                       <Link to={`/products/${item.productId}`} className="cart-product-link">
-                        {item.imageUrls?.[0] ? (
-                          <Image src={item.imageUrls[0]} alt={item.productName} className="cart-product-image" preview={false} />
-                        ) : (
-                          <div className="cart-product-image cart-product-image-empty">No image</div>
-                        )}
+                        <Image
+                          src={item.imageUrls?.[0] || ''}
+                          alt={item.productName}
+                          className="cart-product-image"
+                          preview={false}
+                          loading="lazy"
+                          fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72'%3E%3Crect fill='%23f5f5f5' width='72' height='72'/%3E%3Ctext x='36' y='40' text-anchor='middle' fill='%23bfbfbf' font-size='10'%3ENo img%3C/text%3E%3C/svg%3E"
+                        />
                         <div className="cart-product-info">
                           <Typography.Text strong>{item.productName}</Typography.Text>
                           <Typography.Text type="secondary">Unit price ${Number(item.unitPrice).toFixed(2)}</Typography.Text>
@@ -201,6 +222,52 @@ export default function CartPage({ user }: Props) {
           Checkout selected
         </Button>
       </Card>
+
+      <Modal
+        title="Complete payment"
+        open={createdOrders.length > 0}
+        onCancel={() => setCreatedOrders([])}
+        footer={(
+          <Button onClick={() => setCreatedOrders([])}>
+            Close
+          </Button>
+        )}
+      >
+        <Space direction="vertical" className="full-width">
+          <Alert
+            type="info"
+            showIcon
+            message="Your order has been created. Pay now to allow the merchant to ship it."
+          />
+          {createdOrders.map((order) => {
+            const paid = paidOrderIds.includes(order.id) || order.paymentStatus === 'PAID';
+            return (
+              <Card key={order.id} size="small">
+                <Space direction="vertical" className="full-width">
+                  <div className="cart-summary-bar">
+                    <Typography.Text>Order #{order.id}</Typography.Text>
+                    <Typography.Text strong>${Number(order.totalAmount).toFixed(2)}</Typography.Text>
+                  </div>
+                  <Space>
+                    <Button
+                      type="primary"
+                      icon={<CreditCardOutlined />}
+                      disabled={paid}
+                      loading={paymentMutation.isPending && paymentMutation.variables?.id === order.id}
+                      onClick={() => paymentMutation.mutate(order)}
+                    >
+                      {paid ? 'Paid' : 'Pay now'}
+                    </Button>
+                    <Button>
+                      <Link to={`/orders/${order.id}`}>View order</Link>
+                    </Button>
+                  </Space>
+                </Space>
+              </Card>
+            );
+          })}
+        </Space>
+      </Modal>
     </Space>
   );
 }

@@ -58,6 +58,14 @@ export interface Product {
   ratingCount: number;
 }
 
+export interface PageResponse<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  page: number;
+  size: number;
+}
+
 export interface ProductRequest {
   name: string;
   category: string;
@@ -128,7 +136,7 @@ export interface Order {
   userId: number;
   merchantId?: number;
   merchantName: string;
-  status: 'PENDING_SHIPMENT' | 'PENDING_RECEIPT' | 'COMPLETED' | 'AFTER_SALES';
+  status: 'PENDING_PAYMENT' | 'PENDING_SHIPMENT' | 'PENDING_RECEIPT' | 'COMPLETED' | 'AFTER_SALES' | 'CANCELLED';
   paymentStatus: 'UNPAID' | 'PAID' | 'REFUNDED';
   totalAmount: number;
   shippingAddress: string;
@@ -141,6 +149,17 @@ export interface Order {
   latestAfterSalesType?: AfterSalesType;
   latestAfterSalesStatus?: AfterSalesStatus;
   lines: OrderLine[];
+}
+
+export interface Payment {
+  id: number;
+  orderId: number;
+  userId: number;
+  amount: number;
+  paymentMethod: string;
+  status: 'PROCESSING' | 'SUCCESS' | 'FAILED';
+  createdAt: string;
+  completedAt?: string;
 }
 
 export interface AfterSalesCase {
@@ -199,6 +218,17 @@ export interface ChatMessage {
   createdAt: string;
 }
 
+export type ChatEventType = 'MESSAGE_CREATED' | 'READ_UPDATED' | 'ERROR';
+
+export interface ChatEvent {
+  type: ChatEventType;
+  conversationId: number;
+  message?: ChatMessage;
+  conversation?: Conversation;
+  readerId?: number;
+  occurredAt: string;
+}
+
 export interface CreateConversationRequest {
   customerId: number;
   merchantId: number;
@@ -230,4 +260,39 @@ export interface DashboardSummary {
   lowStockCount: number;
   topProducts: Array<{ productId: number; name: string; salesCount: number; averageRating: number }>;
   inventoryRecommendations: InventoryRecommendation[];
+}
+
+// ── AI Assistant / 智能导购 ──
+
+export interface AssistantRecommendRequest {
+  query: string;
+  category?: string;
+  maxBudget?: number;
+  limit?: number;
+}
+
+export interface AssistantRecommendationItem {
+  productId: number;
+  name: string;
+  price: number;
+  category: string;
+  imageUrls?: string[];
+  merchantName: string;
+  stockQuantity: number;
+  averageRating: number;
+  salesCount: number;
+  reason: string;
+}
+
+export interface AssistantRecommendResult {
+  summary: string;
+  recommendations: AssistantRecommendationItem[];
+}
+
+export interface AssistantStreamTokenEvent {
+  text: string;
+}
+
+export interface AssistantStreamErrorEvent {
+  message: string;
 }
