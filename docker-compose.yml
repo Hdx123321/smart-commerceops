@@ -46,6 +46,7 @@ services:
       SPRING_DATA_REDIS_PORT: 6379
       CATALOG_CACHE_TTL: 5m
       APP_UPLOAD_DIR: /app/uploads
+      PAYMENT_INTERNAL_TOKEN: ${PAYMENT_INTERNAL_TOKEN:-dev-internal-payment-token}
     depends_on:
       mysql:
         condition: service_healthy
@@ -65,6 +66,7 @@ services:
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-commerceops}
       CATALOG_SERVICE_URL: http://catalog-service:8093
+      PAYMENT_INTERNAL_TOKEN: ${PAYMENT_INTERNAL_TOKEN:-dev-internal-payment-token}
     depends_on:
       mysql:
         condition: service_healthy
@@ -72,6 +74,24 @@ services:
         condition: service_started
     ports:
       - "8094:8094"
+
+  payment-service:
+    build:
+      context: ./backend
+      dockerfile: payment-service/Dockerfile
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/payment_db?useSSL=false&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-commerceops}
+      ORDER_SERVICE_URL: http://order-service:8094
+      PAYMENT_INTERNAL_TOKEN: ${PAYMENT_INTERNAL_TOKEN:-dev-internal-payment-token}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      order-service:
+        condition: service_started
+    ports:
+      - "8098:8098"
 
   analytics-service:
     build:
@@ -96,11 +116,29 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/chat_db?useSSL=false&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-commerceops}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      CHAT_ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173
     depends_on:
       mysql:
         condition: service_healthy
     ports:
       - "8096:8096"
+
+  assistant-service:
+    build:
+      context: ./backend
+      dockerfile: assistant-service/Dockerfile
+    environment:
+      CATALOG_SERVICE_URL: http://catalog-service:8093
+      LLM_API_BASE_URL: ${LLM_API_BASE_URL}
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-v4-flash}
+      ASSISTANT_MAX_CANDIDATES: 20
+      ASSISTANT_TIMEOUT_SECONDS: 30
+    depends_on:
+      - catalog-service
+    ports:
+      - "8097:8097"
 
   gateway-service:
     build:
@@ -110,16 +148,20 @@ services:
       IDENTITY_SERVICE_URL: http://identity-service:8092
       CATALOG_SERVICE_URL: http://catalog-service:8093
       ORDER_SERVICE_URL: http://order-service:8094
+      PAYMENT_SERVICE_URL: http://payment-service:8098
       CHAT_SERVICE_URL: http://chat-service:8096
       ANALYTICS_SERVICE_URL: http://analytics-service:8095
+      ASSISTANT_SERVICE_URL: http://assistant-service:8097
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
       CORS_ALLOWED_ORIGINS: http://localhost:5173,http://localhost:3000
     depends_on:
       - identity-service
       - catalog-service
       - order-service
+      - payment-service
       - chat-service
       - analytics-service
+      - assistant-service
     ports:
       - "8090:8090"
 
@@ -130,6 +172,8 @@ services:
         VITE_API_BASE_URL: http://localhost:8090
     depends_on:
       - gateway-service
+      - payment-service
+      - chat-service
     ports:
       - "3000:80"
 

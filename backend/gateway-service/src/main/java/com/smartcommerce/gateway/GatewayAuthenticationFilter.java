@@ -80,13 +80,25 @@ public class GatewayAuthenticationFilter extends OncePerRequestFilter {
     if (path.startsWith("/images/")) {
       return true;
     }
+    if (path.startsWith("/assistant/")) {
+      return true;
+    }
     return HttpMethod.GET.matches(method)
         && (path.equals("/products") || path.matches("/products/\\d+") || path.matches("/products/\\d+/reviews"));
   }
 
   private boolean isRoleAllowed(String method, String path, String role) {
+    if (path.startsWith("/internal/")) {
+      return false;
+    }
     if (path.startsWith("/admin/") || path.startsWith("/analytics/")) {
       return "MERCHANT".equals(role) || "ADMIN".equals(role);
+    }
+    if (path.equals("/payments") && HttpMethod.POST.matches(method)) {
+      return "CUSTOMER".equals(role);
+    }
+    if (path.startsWith("/payments/")) {
+      return "CUSTOMER".equals(role);
     }
     if (path.startsWith("/cart/") || path.equals("/checkout")) {
       return "CUSTOMER".equals(role);

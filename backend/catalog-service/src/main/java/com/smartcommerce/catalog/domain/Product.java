@@ -140,6 +140,14 @@ public class Product {
     salesCount += quantity;
   }
 
+  public void releaseReservation(int quantity) {
+    if (quantity <= 0) {
+      throw new IllegalArgumentException("Quantity must be positive");
+    }
+    stockQuantity += quantity;
+    salesCount = Math.max(salesCount - quantity, 0);
+  }
+
   public void addRating(int rating) {
     if (rating < 1 || rating > 5) {
       throw new IllegalArgumentException("Rating must be between 1 and 5");

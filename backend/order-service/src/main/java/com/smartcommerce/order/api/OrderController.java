@@ -6,6 +6,8 @@ import com.smartcommerce.order.domain.CommerceOrder;
 import com.smartcommerce.order.domain.AfterSalesCase;
 import com.smartcommerce.order.domain.AfterSalesStatus;
 import com.smartcommerce.order.domain.AfterSalesType;
+import com.smartcommerce.order.domain.OrderLine;
+import com.smartcommerce.order.domain.OrderStatus;
 import com.smartcommerce.order.repository.AfterSalesCaseRepository;
 import com.smartcommerce.order.repository.CartItemRepository;
 import com.smartcommerce.order.repository.CommerceOrderRepository;
@@ -15,6 +17,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -27,17 +33,22 @@ public class OrderController {
   private static final String USER_ID_HEADER = "X-User-Id";
   private static final String USER_ROLE_HEADER = "X-User-Role";
   private static final String MERCHANT_ID_HEADER = "X-Merchant-Id";
+  private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
 
   private final CartItemRepository cartItems;
   private final CommerceOrderRepository orders;
   private final AfterSalesCaseRepository afterSalesCases;
   private final RestClient catalogClient;
+  private final String internalToken;
 
-  public OrderController(CartItemRepository cartItems, CommerceOrderRepository orders, AfterSalesCaseRepository afterSalesCases, RestClient catalogClient) {
+  public OrderController(CartItemRepository cartItems, CommerceOrderRepository orders, AfterSalesCaseRepository afterSalesCases,
+                         RestClient catalogClient,
+                         @Value("${app.internal-token:dev-internal-payment-token}") String internalToken) {
     this.cartItems = cartItems;
     this.orders = orders;
     this.afterSalesCases = afterSalesCases;
     this.catalogClient = catalogClient;
+    this.internalToken = internalToken;
   }
 
   @GetMapping("/cart/{userId}")
@@ -164,8 +175,11 @@ public class OrderController {
 
   @GetMapping("/orders")
   @Transactional(readOnly = true)
-  public List<OrderResponse> listOrders(@RequestParam(required = false) Long userId,
+  public PageResponse<OrderResponse> listOrders(@RequestParam(required = false) Long userId,
                                         @RequestParam(required = false) Long merchantId,
+                                        @RequestParam(required = false) OrderStatus status,
+                                        @RequestParam(defaultValue = "0") int page,
+                                        @RequestParam(defaultValue = "50") int size,
                                         @RequestHeader(name = USER_ID_HEADER, required = false) String currentUserId,
                                         @RequestHeader(name = USER_ROLE_HEADER, required = false) String currentRole,
                                         @RequestHeader(name = MERCHANT_ID_HEADER, required = false) String currentMerchantId) {
@@ -179,15 +193,18 @@ public class OrderController {
         userId = null;
       }
     }
-    List<CommerceOrder> result;
+    PageRequest pageable = pageRequest(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+    Page<CommerceOrder> result;
     if (merchantId != null) {
-      result = orders.findByMerchantIdOrderByCreatedAtDesc(merchantId);
+      result = status == null ? orders.findByMerchantId(merchantId, pageable) : orders.findByMerchantIdAndStatus(merchantId, status, pageable);
     } else if (userId != null) {
-      result = orders.findByUserIdOrderByCreatedAtDesc(userId);
+      result = status == null ? orders.findByUserId(userId, pageable) : orders.findByUserIdAndStatus(userId, status, pageable);
+    } else if (status != null) {
+      result = orders.findByStatus(status, pageable);
     } else {
-      result = orders.findAllByOrderByCreatedAtDesc();
+      result = orders.findAll(pageable);
     }
-    return result.stream().map(OrderResponse::from).toList();
+    return PageResponse.from(result, result.stream().map(OrderResponse::from).toList());
   }
 
   @GetMapping("/orders/{id}")
@@ -219,6 +236,20 @@ public class OrderController {
     return OrderResponse.from(order);
   }
 
+  @PutMapping("/internal/orders/{id}/mark-paid")
+  @Transactional
+  public OrderResponse markPaid(@PathVariable Long id,
+                                @RequestHeader(name = INTERNAL_TOKEN_HEADER, required = false) String token) {
+    requireInternalToken(token);
+    CommerceOrder order = orders.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
+    try {
+      order.markPaid();
+    } catch (IllegalStateException error) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, error.getMessage(), error);
+    }
+    return OrderResponse.from(order);
+  }
+
   @PutMapping("/orders/{id}/confirm-receipt")
   @Transactional
   public OrderResponse confirmReceipt(@PathVariable Long id,
@@ -229,6 +260,30 @@ public class OrderController {
     requireCustomerOwner(auth, order.getUserId());
     try {
       order.confirmReceipt();
+    } catch (IllegalStateException error) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, error.getMessage(), error);
+    }
+    return OrderResponse.from(order);
+  }
+
+  @PutMapping("/orders/{id}/cancel")
+  @Transactional
+  public OrderResponse cancelPendingPaymentOrder(@PathVariable Long id,
+                                                 @RequestHeader(name = USER_ID_HEADER, required = false) String currentUserId,
+                                                 @RequestHeader(name = USER_ROLE_HEADER, required = false) String currentRole) {
+    AuthContext auth = requireAuth(currentUserId, currentRole, null);
+    CommerceOrder order = orders.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
+    requireCustomerOwner(auth, order.getUserId());
+    try {
+      order.cancelPendingPayment();
+      for (OrderLine line : order.getLines()) {
+        catalogClient.post()
+            .uri("/internal/products/{id}/release-reservation", line.getProductId())
+            .header(INTERNAL_TOKEN_HEADER, internalToken)
+            .body(Map.of("quantity", line.getQuantity()))
+            .retrieve()
+            .toBodilessEntity();
+      }
     } catch (IllegalStateException error) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, error.getMessage(), error);
     }
@@ -290,8 +345,10 @@ public class OrderController {
 
   @GetMapping("/after-sales")
   @Transactional(readOnly = true)
-  public List<AfterSalesResponse> listAfterSales(@RequestParam(required = false) Long userId,
+  public PageResponse<AfterSalesResponse> listAfterSales(@RequestParam(required = false) Long userId,
                                                  @RequestParam(required = false) Long merchantId,
+                                                 @RequestParam(defaultValue = "0") int page,
+                                                 @RequestParam(defaultValue = "50") int size,
                                                  @RequestHeader(name = USER_ID_HEADER, required = false) String currentUserId,
                                                  @RequestHeader(name = USER_ROLE_HEADER, required = false) String currentRole,
                                                  @RequestHeader(name = MERCHANT_ID_HEADER, required = false) String currentMerchantId) {
@@ -305,15 +362,16 @@ public class OrderController {
         userId = null;
       }
     }
-    List<AfterSalesCase> result;
+    PageRequest pageable = pageRequest(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+    Page<AfterSalesCase> result;
     if (merchantId != null) {
-      result = afterSalesCases.findByMerchantIdOrderByCreatedAtDesc(merchantId);
+      result = afterSalesCases.findByMerchantId(merchantId, pageable);
     } else if (userId != null) {
-      result = afterSalesCases.findByUserIdOrderByCreatedAtDesc(userId);
+      result = afterSalesCases.findByUserId(userId, pageable);
     } else {
-      result = afterSalesCases.findAllByOrderByCreatedAtDesc();
+      result = afterSalesCases.findAll(pageable);
     }
-    return result.stream().map(AfterSalesResponse::from).toList();
+    return PageResponse.from(result, result.stream().map(AfterSalesResponse::from).toList());
   }
 
   @GetMapping("/after-sales/{id}")
@@ -452,6 +510,12 @@ public class OrderController {
     return new AuthContext(Long.parseLong(userId), role, merchantId == null || merchantId.isBlank() ? null : Long.parseLong(merchantId));
   }
 
+  private void requireInternalToken(String token) {
+    if (token == null || !token.equals(internalToken)) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Internal token is invalid");
+    }
+  }
+
   private AuthContext requireAuth(String userId, String role, String merchantId) {
     AuthContext auth = optionalAuth(userId, role, merchantId);
     if (auth == null) {
@@ -510,6 +574,12 @@ public class OrderController {
       return;
     }
     throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the owning merchant can manage this after-sales case");
+  }
+
+  private PageRequest pageRequest(int page, int size, Sort sort) {
+    int safePage = Math.max(page, 0);
+    int safeSize = Math.max(1, Math.min(size, 100));
+    return PageRequest.of(safePage, safeSize, sort);
   }
 
   private record AuthContext(Long userId, String role, Long merchantId) {

@@ -12,7 +12,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,19 +32,26 @@ public class ProductController {
   private static final String USER_ID_HEADER = "X-User-Id";
   private static final String USER_ROLE_HEADER = "X-User-Role";
   private static final String MERCHANT_ID_HEADER = "X-Merchant-Id";
+  private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
+  private static final Set<String> ALLOWED_IMAGE_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
+  private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+  private static final int MAX_FILES_PER_UPLOAD = 5;
   private final ProductRepository products;
   private final ProductReviewRepository reviews;
   private final String uploadDirStr;
+  private final String internalToken;
   private Path imageDir;
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
   public ProductController(ProductRepository products,
                            ProductReviewRepository reviews,
-                           @Value("${app.upload.dir:./uploads}") String uploadDirStr) {
+                           @Value("${app.upload.dir:./uploads}") String uploadDirStr,
+                           @Value("${app.internal-token:dev-internal-payment-token}") String internalToken) {
     this.products = products;
     this.reviews = reviews;
     this.uploadDirStr = uploadDirStr;
+    this.internalToken = internalToken;
   }
 
   @PostConstruct
@@ -50,22 +61,14 @@ public class ProductController {
   }
 
   @GetMapping("/products")
-  @Cacheable(cacheNames = "catalog:products", key = "'category=' + (#category ?: '') + ';search=' + (#search ?: '')")
-  public List<ProductResponse> listProducts(
+  @Cacheable(cacheNames = "catalog:products", key = "'category=' + (#category ?: '') + ';search=' + (#search ?: '') + ';page=' + #page + ';size=' + #size")
+  public PageResponse<ProductResponse> listProducts(
       @RequestParam(required = false) String category,
-      @RequestParam(required = false) String search) {
-    List<Product> result = products.findByActiveTrue();
-    if (category != null && !category.isBlank()) {
-      result = result.stream().filter(p -> category.equals(p.getCategory())).toList();
-    }
-    if (search != null && !search.isBlank()) {
-      String lower = search.toLowerCase();
-      result = result.stream()
-          .filter(p -> (p.getName() != null && p.getName().toLowerCase().contains(lower))
-                    || (p.getDescription() != null && p.getDescription().toLowerCase().contains(lower)))
-          .toList();
-    }
-    return result.stream().map(ProductResponse::from).toList();
+      @RequestParam(required = false) String search,
+      @RequestParam(defaultValue = "0") int page,
+      @RequestParam(defaultValue = "24") int size) {
+    Page<Product> result = products.searchActive(blankToNull(category), blankToNull(search), pageRequest(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+    return PageResponse.from(result, result.stream().map(ProductResponse::from).toList());
   }
 
   @GetMapping("/products/{id}")
@@ -75,8 +78,10 @@ public class ProductController {
   }
 
   @GetMapping("/admin/products")
-  @Cacheable(cacheNames = "catalog:admin-products", key = "(#currentRole ?: 'internal') + ':' + (#currentMerchantId ?: #currentUserId ?: '') + ':merchant=' + (#merchantId ?: 'all')")
-  public List<ProductResponse> adminProducts(@RequestParam(required = false) Long merchantId,
+  @Cacheable(cacheNames = "catalog:admin-products", key = "(#currentRole ?: 'internal') + ':' + (#currentMerchantId ?: #currentUserId ?: '') + ':merchant=' + (#merchantId ?: 'all') + ';page=' + #page + ';size=' + #size")
+  public PageResponse<ProductResponse> adminProducts(@RequestParam(required = false) Long merchantId,
+                                             @RequestParam(defaultValue = "0") int page,
+                                             @RequestParam(defaultValue = "24") int size,
                                              @RequestHeader(name = USER_ID_HEADER, required = false) String currentUserId,
                                              @RequestHeader(name = USER_ROLE_HEADER, required = false) String currentRole,
                                              @RequestHeader(name = MERCHANT_ID_HEADER, required = false) String currentMerchantId) {
@@ -84,8 +89,9 @@ public class ProductController {
     if (auth != null && auth.isMerchant()) {
       merchantId = auth.merchantIdOrUserId();
     }
-    List<Product> result = merchantId == null ? products.findAll() : products.findByMerchantIdOrderByCreatedAtDesc(merchantId);
-    return result.stream().map(ProductResponse::from).toList();
+    PageRequest pageable = pageRequest(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+    Page<Product> result = merchantId == null ? products.findAll(pageable) : products.findByMerchantId(merchantId, pageable);
+    return PageResponse.from(result, result.stream().map(ProductResponse::from).toList());
   }
 
   @PostMapping("/admin/products")
@@ -137,6 +143,22 @@ public class ProductController {
       return ProductResponse.from(products.saveAndFlush(product));
     } catch (ObjectOptimisticLockingFailureException error) {
       throw new ResponseStatusException(HttpStatus.CONFLICT, "Product stock changed, please retry checkout", error);
+    }
+  }
+
+  @PostMapping("/internal/products/{id}/release-reservation")
+  @Transactional
+  @CacheEvict(cacheNames = {"catalog:products", "catalog:product", "catalog:admin-products", "catalog:inventory-alerts"}, allEntries = true)
+  public ProductResponse releaseReservation(@PathVariable Long id,
+                                            @Valid @RequestBody ReserveStockRequest request,
+                                            @RequestHeader(name = INTERNAL_TOKEN_HEADER, required = false) String token) {
+    requireInternalToken(token);
+    Product product = findProduct(id);
+    try {
+      product.releaseReservation(request.quantity());
+      return ProductResponse.from(products.saveAndFlush(product));
+    } catch (ObjectOptimisticLockingFailureException error) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "Product stock changed, please retry cancellation", error);
     }
   }
 
@@ -210,11 +232,31 @@ public class ProductController {
 
   @PostMapping("/admin/upload")
   public List<String> uploadImages(@RequestParam("files") List<MultipartFile> files) {
+    if (files.size() > MAX_FILES_PER_UPLOAD) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+          "Too many files: max " + MAX_FILES_PER_UPLOAD + " allowed");
+    }
     return files.stream().map(file -> {
+      // MIME type validation
+      String contentType = file.getContentType();
+      if (contentType == null || !ALLOWED_IMAGE_TYPES.contains(contentType)) {
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+            "Unsupported file type: " + contentType + ". Allowed: JPEG, PNG, WebP");
+      }
+      // File size validation
+      if (file.getSize() > MAX_FILE_SIZE) {
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+            "File too large: " + file.getSize() + " bytes. Max: " + MAX_FILE_SIZE + " bytes");
+      }
       String original = file.getOriginalFilename();
       String ext = "";
       if (original != null && original.contains(".")) {
-        ext = original.substring(original.lastIndexOf("."));
+        ext = original.substring(original.lastIndexOf(".")).toLowerCase();
+      }
+      // Restrict extensions for extra safety
+      if (!ext.matches("\\.(jpe?g|png|webp)")) {
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+            "Unsupported file extension: " + ext + ". Allowed: .jpg, .jpeg, .png, .webp");
       }
       String stored = UUID.randomUUID() + ext;
       try {
@@ -241,6 +283,16 @@ public class ProductController {
     return products.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found"));
   }
 
+  private PageRequest pageRequest(int page, int size, Sort sort) {
+    int safePage = Math.max(page, 0);
+    int safeSize = Math.max(1, Math.min(size, 100));
+    return PageRequest.of(safePage, safeSize, sort);
+  }
+
+  private String blankToNull(String value) {
+    return value == null || value.isBlank() ? null : value.trim();
+  }
+
   private String resolveCategory(ProductRequest request) {
     try {
       return request.resolvedCategory();
@@ -265,6 +317,12 @@ public class ProductController {
       throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only merchant or admin users can manage catalog");
     }
     return auth;
+  }
+
+  private void requireInternalToken(String token) {
+    if (token == null || !token.equals(internalToken)) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Internal token is invalid");
+    }
   }
 
   private void requireProductOwner(AuthContext auth, Product product) {

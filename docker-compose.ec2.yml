@@ -44,6 +44,7 @@ services:
       SPRING_DATA_REDIS_PORT: 6379
       CATALOG_CACHE_TTL: 5m
       APP_UPLOAD_DIR: /app/uploads
+      PAYMENT_INTERNAL_TOKEN: ${PAYMENT_INTERNAL_TOKEN}
     depends_on:
       mysql:
         condition: service_healthy
@@ -62,10 +63,28 @@ services:
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       CATALOG_SERVICE_URL: http://catalog-service:8093
+      PAYMENT_INTERNAL_TOKEN: ${PAYMENT_INTERNAL_TOKEN}
     depends_on:
       mysql:
         condition: service_healthy
       catalog-service:
+        condition: service_started
+
+  payment-service:
+    build:
+      context: ./backend
+      dockerfile: payment-service/Dockerfile
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/payment_db?useSSL=false&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      ORDER_SERVICE_URL: http://order-service:8094
+      PAYMENT_INTERNAL_TOKEN: ${PAYMENT_INTERNAL_TOKEN}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      order-service:
         condition: service_started
 
   analytics-service:
@@ -91,9 +110,26 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/chat_db?useSSL=false&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      CHAT_ALLOWED_ORIGINS: ${PUBLIC_WEB_ORIGIN}
     depends_on:
       mysql:
         condition: service_healthy
+
+  assistant-service:
+    build:
+      context: ./backend
+      dockerfile: assistant-service/Dockerfile
+    restart: unless-stopped
+    environment:
+      CATALOG_SERVICE_URL: http://catalog-service:8093
+      LLM_API_BASE_URL: ${LLM_API_BASE_URL}
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-v4-flash}
+      ASSISTANT_MAX_CANDIDATES: 20
+      ASSISTANT_TIMEOUT_SECONDS: 30
+    depends_on:
+      - catalog-service
 
   gateway-service:
     build:
@@ -104,16 +140,20 @@ services:
       IDENTITY_SERVICE_URL: http://identity-service:8092
       CATALOG_SERVICE_URL: http://catalog-service:8093
       ORDER_SERVICE_URL: http://order-service:8094
+      PAYMENT_SERVICE_URL: http://payment-service:8098
       CHAT_SERVICE_URL: http://chat-service:8096
       ANALYTICS_SERVICE_URL: http://analytics-service:8095
+      ASSISTANT_SERVICE_URL: http://assistant-service:8097
       JWT_SECRET: ${JWT_SECRET}
       CORS_ALLOWED_ORIGINS: ${PUBLIC_WEB_ORIGIN}
     depends_on:
       - identity-service
       - catalog-service
       - order-service
+      - payment-service
       - chat-service
       - analytics-service
+      - assistant-service
 
   frontend:
     build:
@@ -123,6 +163,8 @@ services:
     restart: unless-stopped
     depends_on:
       - gateway-service
+      - payment-service
+      - chat-service
     ports:
       - "${WEB_PORT:-80}:80"
 

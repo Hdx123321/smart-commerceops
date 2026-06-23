@@ -2,8 +2,10 @@ import { SendOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, Empty, Form, Input, Space, Tag, Typography, message } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { apiErrorMessage, chatApi } from '../api/client';
+import { publishChat, subscribeChat } from '../api/chatSocketClient';
+import { useChatSocket } from '../hooks/useChatSocket';
 import type { ChatMessage, ConversationContextType, SenderRole, UserProfile } from '../types';
 
 interface Props {
@@ -20,7 +22,7 @@ const contextLabels: Record<ConversationContextType, string> = {
   AFTER_SALES: '售后',
   GENERAL: '普通'
 };
-const CHAT_POLL_INTERVAL_MS = 2000;
+const CHAT_FALLBACK_POLL_INTERVAL_MS = 15000;
 
 function formatDate(value?: string) {
   return value ? new Date(value).toLocaleString() : '';
@@ -40,20 +42,22 @@ export default function ChatDetailPage({ user }: Props) {
   const queryClient = useQueryClient();
   const [form] = Form.useForm<MessageFormValues>();
   const [messageApi, contextHolder] = message.useMessage();
+  const { connected } = useChatSocket();
+  const lastMarkedReadId = useRef<number | null>(null);
   const id = Number(conversationId);
 
   const conversationQuery = useQuery({
     queryKey: ['chat-conversation', id, user.id],
     queryFn: () => chatApi.conversation(id, user.id),
     enabled: Number.isFinite(id),
-    refetchInterval: CHAT_POLL_INTERVAL_MS
+    refetchInterval: connected ? false : CHAT_FALLBACK_POLL_INTERVAL_MS
   });
 
   const messagesQuery = useQuery({
     queryKey: ['chat-messages', id],
-    queryFn: () => chatApi.messages(id),
+    queryFn: () => chatApi.messages(id, { limit: 50 }),
     enabled: Number.isFinite(id),
-    refetchInterval: CHAT_POLL_INTERVAL_MS
+    refetchInterval: connected ? false : CHAT_FALLBACK_POLL_INTERVAL_MS
   });
 
   const conversation = conversationQuery.data;
@@ -64,7 +68,13 @@ export default function ChatDetailPage({ user }: Props) {
   );
 
   const markRead = useMutation({
-    mutationFn: () => chatApi.markRead(id, user.id),
+    mutationFn: async () => {
+      if (connected) {
+        publishChat(`/app/chat/conversations/${id}/read`);
+        return;
+      }
+      await chatApi.markRead(id, user.id);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
       queryClient.invalidateQueries({ queryKey: ['chat-conversation', id, user.id] });
@@ -72,23 +82,50 @@ export default function ChatDetailPage({ user }: Props) {
   });
 
   useEffect(() => {
-    if (ownsConversation && (messagesQuery.data?.length ?? 0) > 0) {
+    const latest = messagesQuery.data?.at(-1);
+    if (ownsConversation && latest && latest.id !== lastMarkedReadId.current) {
+      lastMarkedReadId.current = latest.id;
       markRead.mutate();
     }
-  }, [messagesQuery.data?.length, ownsConversation]);
+  }, [messagesQuery.data?.at(-1)?.id, ownsConversation, connected]);
+
+  useEffect(() => {
+    if (!connected || !ownsConversation) return;
+    const subscription = subscribeChat(`/topic/chat/conversations/${id}`, (event) => {
+      if (!event.message) return;
+      queryClient.setQueryData<ChatMessage[]>(['chat-messages', id], (current = []) => {
+        if (current.some((item) => item.id === event.message?.id)) return current;
+        return [...current, event.message as ChatMessage];
+      });
+      if (event.conversation) {
+        queryClient.setQueryData(['chat-conversation', id, user.id], event.conversation);
+      }
+    });
+    void queryClient.invalidateQueries({ queryKey: ['chat-messages', id] });
+    return () => subscription.unsubscribe();
+  }, [connected, id, ownsConversation, queryClient, user.id]);
 
   const sendMessage = useMutation({
-    mutationFn: (values: MessageFormValues) => chatApi.sendMessage(id, {
-      senderId: user.id,
-      senderRole: user.role as SenderRole,
-      senderName: user.username,
-      content: values.content
-    }),
-    onSuccess: () => {
+    mutationFn: async (values: MessageFormValues) => {
+      if (connected) {
+        publishChat(`/app/chat/conversations/${id}/messages`, { content: values.content });
+        return true;
+      }
+      await chatApi.sendMessage(id, {
+        senderId: user.id,
+        senderRole: user.role as SenderRole,
+        senderName: user.username,
+        content: values.content
+      });
+      return false;
+    },
+    onSuccess: (realtime) => {
       form.resetFields();
-      queryClient.invalidateQueries({ queryKey: ['chat-messages', id] });
-      queryClient.invalidateQueries({ queryKey: ['chat-conversation', id, user.id] });
-      queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
+      if (!realtime) {
+        queryClient.invalidateQueries({ queryKey: ['chat-messages', id] });
+        queryClient.invalidateQueries({ queryKey: ['chat-conversation', id, user.id] });
+        queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
+      }
     },
     onError: (error) => messageApi.error(apiErrorMessage(error, 'Send message failed'))
   });
@@ -103,7 +140,8 @@ export default function ChatDetailPage({ user }: Props) {
       <div className="page-heading">
         <div>
           <Typography.Title level={2}>Conversation</Typography.Title>
-          <Typography.Text type="secondary">Messages are persisted and refreshed every few seconds.</Typography.Text>
+          <Typography.Text type="secondary">Messages are persisted and delivered in real time.</Typography.Text>
+          <div><Tag color={connected ? 'green' : 'orange'}>{connected ? 'Live' : 'Reconnecting; REST fallback active'}</Tag></div>
         </div>
         <Button onClick={() => navigate('/chat')}>Back to messages</Button>
       </div>

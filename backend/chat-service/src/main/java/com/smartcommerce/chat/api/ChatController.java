@@ -34,8 +34,10 @@ public class ChatController {
   }
 
   @GetMapping("/conversations")
-  public List<ConversationResponse> conversations(@RequestParam(required = false) Long customerId,
+  public PageResponse<ConversationResponse> conversations(@RequestParam(required = false) Long customerId,
                                                   @RequestParam(required = false) Long merchantId,
+                                                  @RequestParam(defaultValue = "0") int page,
+                                                  @RequestParam(defaultValue = "20") int size,
                                                   @RequestHeader(name = USER_ID_HEADER, required = false) String currentUserId,
                                                   @RequestHeader(name = USER_ROLE_HEADER, required = false) String currentRole,
                                                   @RequestHeader(name = MERCHANT_ID_HEADER, required = false) String currentMerchantId) {
@@ -47,7 +49,7 @@ public class ChatController {
       customerId = null;
       merchantId = auth.merchantIdOrUserId();
     }
-    return chatService.list(customerId, merchantId);
+    return chatService.list(customerId, merchantId, page, size);
   }
 
   @GetMapping("/conversations/{id}")
@@ -63,12 +65,17 @@ public class ChatController {
 
   @GetMapping("/conversations/{id}/messages")
   public List<ChatMessageResponse> messages(@PathVariable Long id,
+                                            @RequestParam(required = false) Long beforeId,
+                                            @RequestParam(defaultValue = "50") int limit,
                                             @RequestHeader(name = USER_ID_HEADER, required = false) String currentUserId,
                                             @RequestHeader(name = USER_ROLE_HEADER, required = false) String currentRole,
                                             @RequestHeader(name = MERCHANT_ID_HEADER, required = false) String currentMerchantId) {
     AuthContext auth = requireAuth(currentUserId, currentRole, currentMerchantId);
     requireConversationAccess(auth, chatService.get(id, auth.readerId()));
-    return chatService.messages(id);
+    if (limit < 1 || limit > 100) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "limit must be between 1 and 100");
+    }
+    return chatService.messages(id, beforeId, limit);
   }
 
   @PostMapping("/conversations/{id}/messages")

@@ -1,23 +1,25 @@
-import { LogoutOutlined, ShopOutlined } from '@ant-design/icons';
-import { Button, Layout, Menu, Space, Typography, type MenuProps } from 'antd';
+import { LogoutOutlined } from '@ant-design/icons';
+import { Button, Layout, Menu, Skeleton, Space, Typography, type MenuProps } from 'antd';
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { useState, type ReactElement } from 'react';
+import { lazy, Suspense, useState, type ReactElement } from 'react';
 import { clearSession, currentUser } from './api/client';
-import DashboardPage from './pages/DashboardPage';
-import AfterSalesDetailPage from './pages/AfterSalesDetailPage';
-import ChatDetailPage from './pages/ChatDetailPage';
-import ChatListPage from './pages/ChatListPage';
-import LoginPage from './pages/LoginPage';
-import OrdersPage from './pages/OrdersPage';
-import OrderDetailPage from './pages/OrderDetailPage';
-import ProductsPage from './pages/ProductsPage';
-import ProductDetailPage from './pages/ProductDetailPage';
-import CartPage from './pages/CartPage';
-import ProfilePage from './pages/ProfilePage';
+import { disconnectChatSocket } from './api/chatSocketClient';
+import ClickSpark from './components/react-bits/ClickSpark';
 import type { Role, UserProfile } from './types';
 
 const { Header, Content } = Layout;
 const OPS_ROLES: Role[] = ['MERCHANT', 'ADMIN'];
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const AfterSalesDetailPage = lazy(() => import('./pages/AfterSalesDetailPage'));
+const ChatDetailPage = lazy(() => import('./pages/ChatDetailPage'));
+const ChatListPage = lazy(() => import('./pages/ChatListPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const OrdersPage = lazy(() => import('./pages/OrdersPage'));
+const OrderDetailPage = lazy(() => import('./pages/OrderDetailPage'));
+const ProductsPage = lazy(() => import('./pages/ProductsPage'));
+const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'));
+const CartPage = lazy(() => import('./pages/CartPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 
 function isOpsUser(user: UserProfile | null) {
   return !!user && OPS_ROLES.includes(user.role);
@@ -53,6 +55,7 @@ function Shell() {
   const [user, setUser] = useState<UserProfile | null>(currentUser());
 
   const logout = () => {
+    void disconnectChatSocket();
     clearSession();
     setUser(null);
   };
@@ -71,8 +74,7 @@ function Shell() {
     <Layout className="app-shell">
       <Header className="topbar">
         <Space className="brand">
-          <ShopOutlined />
-          <Typography.Text strong>Smart CommerceOps</Typography.Text>
+          <img src="/logo.png" alt="DailyHaven" className="brand-logo" />
         </Space>
         <Menu mode="horizontal" selectedKeys={[selectedMenuKey]} items={menuItems} className="nav" />
         {user ? (
@@ -87,6 +89,8 @@ function Shell() {
         )}
       </Header>
       <Content className="content">
+        <ClickSpark sparkColor="#000000" sparkCount={6} sparkSize={8} sparkRadius={12} duration={350}>
+        <Suspense fallback={<div className="page"><Skeleton active paragraph={{ rows: 8 }} /></div>}>
         <Routes>
           <Route
             path="/login"
@@ -160,6 +164,8 @@ function Shell() {
           />
           <Route path="*" element={<Navigate to="/products" replace />} />
         </Routes>
+        </Suspense>
+        </ClickSpark>
       </Content>
     </Layout>
   );

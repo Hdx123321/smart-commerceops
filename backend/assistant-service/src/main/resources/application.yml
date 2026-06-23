@@ -1,0 +1,22 @@
+server:
+  port: ${PORT:8097}
+
+spring:
+  application:
+    name: assistant-service
+
+assistant:
+  catalog:
+    url: ${CATALOG_SERVICE_URL:http://localhost:8093}
+  llm:
+    base-url: ${LLM_API_BASE_URL:https://api.deepseek.com}
+    api-key: ${LLM_API_KEY:}
+    model: ${LLM_MODEL:deepseek-v4-flash}
+  max-candidates: ${ASSISTANT_MAX_CANDIDATES:20}
+  timeout-seconds: ${ASSISTANT_TIMEOUT_SECONDS:30}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus

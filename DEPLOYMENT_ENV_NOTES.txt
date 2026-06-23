@@ -1,0 +1,107 @@
+Smart CommerceOps environment notes
+
+Local machine:
+- Path: C:\Users\14188\Desktop\CA_Team4\SpringBoot_CA\smart-commerceops\.env
+- MYSQL_ROOT_PASSWORD=commerceops
+- JWT_SECRET=replace-with-a-long-random-secret-for-non-local-use
+- VITE_API_BASE_URL=http://localhost:8090
+- Purpose: used by the local Docker Compose / local development setup.
+- MySQL container example: smart-commerceops-mysql-1
+- Local MySQL dump password: commerceops
+
+DigitalOcean server:
+- Path: /root/smart-commerceops-main/.env
+- MYSQL_ROOT_PASSWORD=ScopsMySQL!2026#Q7m
+- JWT_SECRET=smart-commerceops-jwt-2026-9fK2xL8pQ4mN7vR1tY6z
+- PUBLIC_WEB_ORIGIN=http://smart-commerceops.hdx-lab.org
+- PUBLIC_API_BASE_URL=/api
+- WEB_PORT=80
+- Purpose: used by docker-compose.ec2.yml on the cloud server.
+- MySQL container example: smart-commerceops-main-mysql-1
+- Cloud MySQL import password: ScopsMySQL!2026#Q7m
+
+Important distinction:
+- The local .env and the cloud .env are separate files on separate machines.
+- Changing the local .env does not change the cloud server.
+- Changing the cloud .env does not change the local project.
+- Local Docker MySQL and cloud Docker MySQL are separate databases.
+- When exporting from local Docker MySQL, use the local password: commerceops.
+- When importing into cloud Docker MySQL, use the cloud password: ScopsMySQL!2026#Q7m.
+
+Common commands:
+- Export local data:
+  docker exec smart-commerceops-mysql-1 mysqldump -uroot -pcommerceops --databases catalog_db chat_db identity_db order_db > C:\Users\14188\Desktop\smart-commerceops.sql
+
+- Upload SQL file to cloud:
+  scp C:\Users\14188\Desktop\smart-commerceops.sql root@<droplet-ip>:/root/
+
+- Import into cloud data:
+  docker exec -i smart-commerceops-main-mysql-1 mysql -uroot -p'ScopsMySQL!2026#Q7m' < /root/smart-commerceops.sql
+
+================================================================
+Product Image Storage (Docker Volume)
+================================================================
+
+Architecture:
+  - Images uploaded via POST /api/admin/upload are saved to the catalog-service
+    container at /app/uploads/images/products/<uuid>.<ext>.
+  - The /app/uploads directory is backed by a named Docker volume:
+    catalog-uploads (local) / smart-commerceops-main_catalog-uploads (cloud).
+  - Database stores only the access path: /images/products/<uuid>.<ext>.
+  - Frontend loads images via /images/... which nginx proxies to gateway,
+    then gateway's catalog-images route proxies to catalog-service.
+  - StaticResourceConfig serves /images/** from file:<uploadDir>/images/.
+
+Design limitations (single-instance demo):
+  - Images live on the Docker host's local disk. They are NOT replicated
+    across multiple servers or regions.
+  - If the Droplet is destroyed without a volume backup, images are lost.
+  - For multi-instance production, migrate to object storage (S3/Spaces/R2).
+  - This is NOT a long-term production architecture.
+
+File type restrictions:
+  - Allowed MIME types: image/jpeg, image/png, image/webp
+  - Allowed extensions: .jpg, .jpeg, .png, .webp
+  - Max file size: 5 MB per file
+  - Max files per upload: 5
+
+Cloud (Droplet) backup command:
+  docker run --rm \
+    -v smart-commerceops-main_catalog-uploads:/data \
+    -v /root:/backup \
+    alpine tar czf /backup/catalog-uploads-$(date +%Y%m%d).tar.gz -C /data .
+
+Cloud (Droplet) restore command:
+  docker compose -f docker-compose.ec2.yml stop catalog-service
+
+  docker run --rm \
+    -v smart-commerceops-main_catalog-uploads:/data \
+    -v /root:/backup \
+    alpine sh -c "cd /data && tar xzf /backup/catalog-uploads-YYYYMMDD.tar.gz"
+
+  docker compose -f docker-compose.ec2.yml start catalog-service
+
+Local backup command:
+  docker run --rm \
+    -v smart-commerceops_catalog-uploads:/data \
+    -v /tmp:/backup \
+    alpine tar czf /backup/catalog-uploads-$(date +%Y%m%d).tar.gz -C /data .
+
+Local restore command:
+  docker compose stop catalog-service
+
+  docker run --rm \
+    -v smart-commerceops_catalog-uploads:/data \
+    -v /tmp:/backup \
+    alpine sh -c "cd /data && tar xzf /backup/catalog-uploads-YYYYMMDD.tar.gz"
+
+  docker compose start catalog-service
+
+Migration reminder:
+  When migrating the cloud database, you MUST also migrate the
+  catalog-uploads volume. Otherwise product images will be missing.
+  - Export DB: mysqldump (see above)
+  - Export images: tar czf (see backup command above)
+  - Copy both to new server
+  - Import DB first, then restore images
+

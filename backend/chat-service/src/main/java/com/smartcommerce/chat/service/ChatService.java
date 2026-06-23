@@ -8,6 +8,11 @@ import com.smartcommerce.chat.repository.ChatMessageRepository;
 import com.smartcommerce.chat.repository.ConversationReadRepository;
 import com.smartcommerce.chat.repository.ConversationRepository;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Collections;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -43,21 +48,28 @@ public class ChatService {
 
   @Transactional(readOnly = true)
   public List<ConversationResponse> list(Long customerId, Long merchantId) {
-    List<Conversation> result;
+    return list(customerId, merchantId, 0, 100).content();
+  }
+
+  @Transactional(readOnly = true)
+  public PageResponse<ConversationResponse> list(Long customerId, Long merchantId, int page, int size) {
+    Page<Conversation> result;
     Long readerId;
+    PageRequest pageable = pageRequest(page, size);
     if (merchantId != null) {
-      result = conversations.findByMerchantIdOrderByLastMessageAtDescUpdatedAtDesc(merchantId);
+      result = conversations.findByMerchantId(merchantId, pageable);
       readerId = merchantId;
     } else if (customerId != null) {
-      result = conversations.findByCustomerIdOrderByLastMessageAtDescUpdatedAtDesc(customerId);
+      result = conversations.findByCustomerId(customerId, pageable);
       readerId = customerId;
     } else {
-      result = conversations.findAllByOrderByLastMessageAtDescUpdatedAtDesc();
+      result = conversations.findAll(pageable);
       readerId = null;
     }
-    return result.stream()
+    List<ConversationResponse> content = result.stream()
         .map(conversation -> ConversationResponse.from(conversation, readerId == null ? 0 : unreadCount(conversation, readerId)))
         .toList();
+    return PageResponse.from(result, content);
   }
 
   @Transactional(readOnly = true)
@@ -68,17 +80,45 @@ public class ChatService {
 
   @Transactional(readOnly = true)
   public List<ChatMessageResponse> messages(Long conversationId) {
+    return messages(conversationId, null, 50);
+  }
+
+  @Transactional(readOnly = true)
+  public List<ChatMessageResponse> messages(Long conversationId, Long beforeId, int limit) {
     requireConversation(conversationId);
-    return messages.findByConversation_IdOrderByCreatedAtAsc(conversationId).stream()
+    int safeLimit = Math.max(1, Math.min(limit, 100));
+    List<ChatMessage> page = beforeId == null
+        ? messages.findByConversation_IdOrderByIdDesc(conversationId, PageRequest.of(0, safeLimit))
+        : messages.findByConversation_IdAndIdLessThanOrderByIdDesc(conversationId, beforeId, PageRequest.of(0, safeLimit));
+    List<ChatMessage> chronological = new ArrayList<>(page);
+    Collections.reverse(chronological);
+    return chronological.stream()
         .map(ChatMessageResponse::from)
         .toList();
+  }
+
+  @Transactional(readOnly = true)
+  public ConversationResponse requireAccess(Long conversationId, Long userId, String role, boolean write) {
+    Conversation conversation = requireConversation(conversationId);
+    if ("ADMIN".equals(role)) {
+      if (write) {
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin users can only audit conversations");
+      }
+      return ConversationResponse.from(conversation, 0);
+    }
+    boolean allowed = "CUSTOMER".equals(role) && conversation.getCustomerId().equals(userId)
+        || "MERCHANT".equals(role) && conversation.getMerchantId().equals(userId);
+    if (!allowed) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Conversation is outside current user scope");
+    }
+    return ConversationResponse.from(conversation, unreadCount(conversation, userId));
   }
 
   @Transactional
   public ChatMessageResponse send(Long conversationId, SendMessageRequest request) {
     Conversation conversation = requireConversation(conversationId);
     ChatMessage message = conversation.addMessage(request.senderId(), request.senderRole(), request.senderName(), request.content());
-    conversations.save(conversation);
+    messages.saveAndFlush(message);
     return ChatMessageResponse.from(message);
   }
 
@@ -98,6 +138,12 @@ public class ChatService {
   private Conversation requireConversation(Long conversationId) {
     return conversations.findById(conversationId)
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation not found"));
+  }
+
+  private PageRequest pageRequest(int page, int size) {
+    int safePage = Math.max(page, 0);
+    int safeSize = Math.max(1, Math.min(size, 100));
+    return PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "lastMessageAt", "updatedAt"));
   }
 
   private long unreadCount(Conversation conversation, Long readerId) {

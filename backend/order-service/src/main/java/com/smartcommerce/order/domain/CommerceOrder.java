@@ -23,11 +23,11 @@ public class CommerceOrder {
 
   @Enumerated(EnumType.STRING)
   @Column(nullable = false, length = 30)
-  private OrderStatus status = OrderStatus.PENDING_SHIPMENT;
+  private OrderStatus status = OrderStatus.PENDING_PAYMENT;
 
   @Enumerated(EnumType.STRING)
   @Column(nullable = false, length = 30)
-  private PaymentStatus paymentStatus = PaymentStatus.PAID;
+  private PaymentStatus paymentStatus = PaymentStatus.UNPAID;
 
   @Column(nullable = false, precision = 12, scale = 2)
   private BigDecimal totalAmount = BigDecimal.ZERO;
@@ -65,7 +65,6 @@ public class CommerceOrder {
     this.shippingAddress = shippingAddress;
     this.phoneNumber = phoneNumber;
     this.paymentMethod = paymentMethod;
-    this.paidAt = createdAt;
   }
 
   public Long getId() { return id; }
@@ -99,8 +98,33 @@ public class CommerceOrder {
     if (status != OrderStatus.PENDING_SHIPMENT) {
       throw new IllegalStateException("Only pending shipment orders can be shipped");
     }
+    if (paymentStatus != PaymentStatus.PAID) {
+      throw new IllegalStateException("Only paid orders can be shipped");
+    }
     status = OrderStatus.PENDING_RECEIPT;
     updatedAt = Instant.now();
+  }
+
+  public void markPaid() {
+    if (paymentStatus == PaymentStatus.PAID) {
+      if (status == OrderStatus.PENDING_PAYMENT) {
+        status = OrderStatus.PENDING_SHIPMENT;
+        updatedAt = Instant.now();
+      }
+      return;
+    }
+    if (paymentStatus == PaymentStatus.REFUNDED) {
+      throw new IllegalStateException("Refunded orders cannot be marked paid");
+    }
+    if (status == OrderStatus.CANCELLED) {
+      throw new IllegalStateException("Cancelled orders cannot be marked paid");
+    }
+    paymentStatus = PaymentStatus.PAID;
+    paidAt = Instant.now();
+    updatedAt = paidAt;
+    if (status == OrderStatus.PENDING_PAYMENT) {
+      status = OrderStatus.PENDING_SHIPMENT;
+    }
   }
 
   public void confirmReceipt() {
@@ -115,7 +139,18 @@ public class CommerceOrder {
     if (status == OrderStatus.AFTER_SALES) {
       throw new IllegalStateException("Order is already in after-sales");
     }
+    if (status == OrderStatus.PENDING_PAYMENT || status == OrderStatus.CANCELLED) {
+      throw new IllegalStateException("Only active paid orders can request after-sales");
+    }
     status = OrderStatus.AFTER_SALES;
+    updatedAt = Instant.now();
+  }
+
+  public void cancelPendingPayment() {
+    if (status != OrderStatus.PENDING_PAYMENT || paymentStatus != PaymentStatus.UNPAID) {
+      throw new IllegalStateException("Only unpaid pending payment orders can be cancelled");
+    }
+    status = OrderStatus.CANCELLED;
     updatedAt = Instant.now();
   }
 }

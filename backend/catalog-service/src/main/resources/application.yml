@@ -24,6 +24,7 @@ spring:
       max-request-size: 25MB
 
 app:
+  internal-token: ${PAYMENT_INTERNAL_TOKEN:dev-internal-payment-token}
   upload:
     dir: ${APP_UPLOAD_DIR:./uploads}
   cache:
