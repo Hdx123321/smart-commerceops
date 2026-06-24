@@ -137,11 +137,18 @@ export default function ChatDetailPage({ user }: Props) {
   return (
     <Space direction="vertical" size="large" className="page">
       {contextHolder}
-      <div className="page-heading">
+      <div className="chat-detail-sticky-header">
         <div>
-          <Typography.Title level={2}>Conversation</Typography.Title>
-          <Typography.Text type="secondary">Messages are persisted and delivered in real time.</Typography.Text>
-          <div><Tag color={connected ? 'green' : 'orange'}>{connected ? 'Live' : 'Reconnecting; REST fallback active'}</Tag></div>
+          <Typography.Title level={3} className="cart-total">{conversation?.merchantName ?? 'Conversation'}</Typography.Title>
+          <Space wrap>
+            {conversation && <Tag>{contextLabels[conversation.contextType]}</Tag>}
+            {conversation && (
+              <Typography.Text type="secondary">
+                {link ? <Link to={link}>{conversation.contextTitle || 'Open related context'}</Link> : (conversation.contextTitle || 'General conversation')}
+              </Typography.Text>
+            )}
+            <Tag color={connected ? 'green' : 'orange'}>{connected ? 'Live' : 'Reconnecting; REST fallback active'}</Tag>
+          </Space>
         </div>
         <Button onClick={() => navigate('/chat')}>Back to messages</Button>
       </div>
@@ -152,20 +159,6 @@ export default function ChatDetailPage({ user }: Props) {
       {!ownsConversation && conversation && (
         <Alert type="error" showIcon message="You do not have access to this conversation." />
       )}
-
-      <Card loading={conversationQuery.isLoading}>
-        {conversation && ownsConversation && (
-          <Space direction="vertical" size={4}>
-            <Space wrap>
-              <Typography.Title level={4} className="cart-total">{conversation.merchantName}</Typography.Title>
-              <Tag>{contextLabels[conversation.contextType]}</Tag>
-            </Space>
-            <Typography.Text type="secondary">
-              {link ? <Link to={link}>{conversation.contextTitle || 'Open related context'}</Link> : (conversation.contextTitle || 'General conversation')}
-            </Typography.Text>
-          </Space>
-        )}
-      </Card>
 
       {conversation && ownsConversation && (
         <Card>

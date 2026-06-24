@@ -25,11 +25,13 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.client.RestClient;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 public class ProductController {
   private static final String USER_ID_HEADER = "X-User-Id";
+  private static final String USERNAME_HEADER = "X-Username";
   private static final String USER_ROLE_HEADER = "X-User-Role";
   private static final String MERCHANT_ID_HEADER = "X-Merchant-Id";
   private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
@@ -38,6 +40,7 @@ public class ProductController {
   private static final int MAX_FILES_PER_UPLOAD = 5;
   private final ProductRepository products;
   private final ProductReviewRepository reviews;
+  private final RestClient orderRestClient;
   private final String uploadDirStr;
   private final String internalToken;
   private Path imageDir;
@@ -46,10 +49,12 @@ public class ProductController {
 
   public ProductController(ProductRepository products,
                            ProductReviewRepository reviews,
+                           RestClient orderRestClient,
                            @Value("${app.upload.dir:./uploads}") String uploadDirStr,
                            @Value("${app.internal-token:dev-internal-payment-token}") String internalToken) {
     this.products = products;
     this.reviews = reviews;
+    this.orderRestClient = orderRestClient;
     this.uploadDirStr = uploadDirStr;
     this.internalToken = internalToken;
   }
@@ -61,13 +66,14 @@ public class ProductController {
   }
 
   @GetMapping("/products")
-  @Cacheable(cacheNames = "catalog:products", key = "'category=' + (#category ?: '') + ';search=' + (#search ?: '') + ';page=' + #page + ';size=' + #size")
+  @Cacheable(cacheNames = "catalog:products", key = "'merchant=' + (#merchantId ?: '') + ';category=' + (#category ?: '') + ';search=' + (#search ?: '') + ';page=' + #page + ';size=' + #size")
   public PageResponse<ProductResponse> listProducts(
       @RequestParam(required = false) String category,
       @RequestParam(required = false) String search,
+      @RequestParam(required = false) Long merchantId,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "24") int size) {
-    Page<Product> result = products.searchActive(blankToNull(category), blankToNull(search), pageRequest(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+    Page<Product> result = products.searchActive(merchantId, blankToNull(category), blankToNull(search), pageRequest(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
     return PageResponse.from(result, result.stream().map(ProductResponse::from).toList());
   }
 
@@ -181,16 +187,61 @@ public class ProductController {
   @ResponseStatus(HttpStatus.CREATED)
   @Transactional
   @CacheEvict(cacheNames = {"catalog:products", "catalog:product", "catalog:admin-products"}, allEntries = true)
-  public ProductReviewResponse createReview(@PathVariable Long id, @Valid @RequestBody ProductReviewRequest request) {
+  public ProductReviewResponse createReview(@PathVariable Long id,
+                                            @Valid @RequestBody ProductReviewRequest request,
+                                            @RequestHeader(name = USER_ID_HEADER, required = false) String currentUserId,
+                                            @RequestHeader(name = USERNAME_HEADER, required = false) String currentUsername,
+                                            @RequestHeader(name = USER_ROLE_HEADER, required = false) String currentRole) {
+    AuthContext auth = requireCustomerAuth(currentUserId, currentRole);
+    if (reviews.existsByOrderLineId(request.orderLineId())) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "This order item has already been reviewed");
+    }
     Product product = findProduct(id);
+    ReviewEligibilityResponse eligibility = orderRestClient.get()
+        .uri(uriBuilder -> uriBuilder
+            .path("/internal/orders/review-eligibility")
+            .queryParam("orderId", request.orderId())
+            .queryParam("orderLineId", request.orderLineId())
+            .queryParam("productId", product.getId())
+            .queryParam("userId", auth.userId())
+            .queryParam("username", currentUsername == null || currentUsername.isBlank() ? "Customer" : currentUsername)
+            .build())
+        .header(INTERNAL_TOKEN_HEADER, internalToken)
+        .retrieve()
+        .body(ReviewEligibilityResponse.class);
+    if (eligibility == null) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to verify purchase");
+    }
     ProductReview review = reviews.save(new ProductReview(
         product.getId(),
-        request.userId(),
-        request.username(),
+        eligibility.userId(),
+        eligibility.username(),
         request.rating(),
-        request.comment()
+        request.comment(),
+        eligibility.orderId(),
+        eligibility.orderLineId()
     ));
     product.addRating(request.rating());
+    return ProductReviewResponse.from(review);
+  }
+
+  @PutMapping("/products/{productId}/reviews/{reviewId}/reply")
+  @Transactional
+  public ProductReviewResponse replyToReview(@PathVariable Long productId,
+                                             @PathVariable Long reviewId,
+                                             @Valid @RequestBody ProductReviewReplyRequest request,
+                                             @RequestHeader(name = USER_ID_HEADER, required = false) String currentUserId,
+                                             @RequestHeader(name = USER_ROLE_HEADER, required = false) String currentRole,
+                                             @RequestHeader(name = MERCHANT_ID_HEADER, required = false) String currentMerchantId) {
+    AuthContext auth = requireOpsAuth(currentUserId, currentRole, currentMerchantId);
+    Product product = findProduct(productId);
+    requireProductOwner(auth, product);
+    ProductReview review = reviews.findById(reviewId)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Review not found"));
+    if (!product.getId().equals(review.getProductId())) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Review does not belong to this product");
+    }
+    review.reply(request.reply());
     return ProductReviewResponse.from(review);
   }
 
@@ -319,6 +370,17 @@ public class ProductController {
     return auth;
   }
 
+  private AuthContext requireCustomerAuth(String userId, String role) {
+    AuthContext auth = optionalAuth(userId, role, null);
+    if (auth == null) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user headers are required");
+    }
+    if (!auth.isCustomer()) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only customers can review purchased products");
+    }
+    return auth;
+  }
+
   private void requireInternalToken(String token) {
     if (token == null || !token.equals(internalToken)) {
       throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Internal token is invalid");
@@ -336,6 +398,10 @@ public class ProductController {
   }
 
   private record AuthContext(Long userId, String role, Long merchantId) {
+    boolean isCustomer() {
+      return "CUSTOMER".equals(role);
+    }
+
     boolean isMerchant() {
       return "MERCHANT".equals(role);
     }

@@ -12,6 +12,7 @@ import type {
   Order,
   Payment,
   PageResponse,
+  Merchant,
   Product,
   ProductRequest,
   ProductReview,
@@ -140,7 +141,7 @@ export const authApi = {
 };
 
 export const catalogApi = {
-  products: async (params?: { category?: string; search?: string; page?: number; size?: number }) => {
+  products: async (params?: { category?: string; search?: string; merchantId?: number; page?: number; size?: number }) => {
     const { data } = await api.get<PageResponse<Product>>('/products', { params });
     return data;
   },
@@ -158,6 +159,10 @@ export const catalogApi = {
   },
   createReview: async (productId: number, payload: ProductReviewRequest) => {
     const { data } = await api.post<ProductReview>(`/products/${productId}/reviews`, payload);
+    return data;
+  },
+  replyToReview: async (productId: number, reviewId: number, payload: { reply: string }) => {
+    const { data } = await api.put<ProductReview>(`/products/${productId}/reviews/${reviewId}/reply`, payload);
     return data;
   },
   inventoryAlerts: async () => {
@@ -178,6 +183,17 @@ export const catalogApi = {
   },
   updateProductImages: async (productId: number, imageUrls: string[]): Promise<Product> => {
     const { data } = await api.put<Product>(`/admin/products/${productId}/images`, imageUrls);
+    return data;
+  }
+};
+
+export const merchantApi = {
+  merchant: async (merchantId: number) => {
+    const { data } = await api.get<Merchant>(`/merchants/${merchantId}`);
+    return data;
+  },
+  merchants: async (params?: { search?: string; page?: number; size?: number }) => {
+    const { data } = await api.get<PageResponse<Merchant>>('/merchants', { params });
     return data;
   }
 };

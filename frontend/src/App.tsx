@@ -18,6 +18,7 @@ const OrdersPage = lazy(() => import('./pages/OrdersPage'));
 const OrderDetailPage = lazy(() => import('./pages/OrderDetailPage'));
 const ProductsPage = lazy(() => import('./pages/ProductsPage'));
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'));
+const MerchantStorePage = lazy(() => import('./pages/MerchantStorePage'));
 const CartPage = lazy(() => import('./pages/CartPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 
@@ -98,6 +99,7 @@ function Shell() {
           />
           <Route path="/products" element={<ProductsPage user={user} />} />
           <Route path="/products/:productId" element={<ProductDetailPage user={user} />} />
+          <Route path="/merchants/:merchantId" element={<MerchantStorePage user={user} />} />
           <Route
             path="/profile"
             element={(

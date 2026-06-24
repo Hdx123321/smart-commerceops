@@ -250,6 +250,30 @@ public class OrderController {
     return OrderResponse.from(order);
   }
 
+  @GetMapping("/internal/orders/review-eligibility")
+  @Transactional(readOnly = true)
+  public ReviewEligibilityResponse reviewEligibility(@RequestParam Long orderId,
+                                                     @RequestParam Long orderLineId,
+                                                     @RequestParam Long productId,
+                                                     @RequestParam Long userId,
+                                                     @RequestParam String username,
+                                                     @RequestHeader(name = INTERNAL_TOKEN_HEADER, required = false) String token) {
+    requireInternalToken(token);
+    CommerceOrder order = orders.findById(orderId)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
+    if (!order.getUserId().equals(userId)) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the purchasing customer can review this item");
+    }
+    if (order.getStatus() != OrderStatus.COMPLETED) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only completed orders can be reviewed");
+    }
+    OrderLine line = order.getLines().stream()
+        .filter(candidate -> orderLineId.equals(candidate.getId()) && productId.equals(candidate.getProductId()))
+        .findFirst()
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Order line does not match this product"));
+    return new ReviewEligibilityResponse(order.getId(), line.getId(), line.getProductId(), order.getUserId(), username);
+  }
+
   @PutMapping("/orders/{id}/confirm-receipt")
   @Transactional
   public OrderResponse confirmReceipt(@PathVariable Long id,

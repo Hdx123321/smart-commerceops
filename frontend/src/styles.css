@@ -744,8 +744,34 @@ body,
   padding: 10px;
 }
 
+.chat-detail-sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 18px;
+  background: rgba(251, 251, 245, 0.96);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.merchant-result-card {
+  height: 100%;
+  border-radius: 16px;
+}
+
 /* mobile fullscreen drawer */
 @media (max-width: 576px) {
+  .chat-detail-sticky-header {
+    flex-direction: column;
+    top: 0;
+  }
+
   .assistant-drawer .ant-drawer-content-wrapper {
     width: 100% !important;
   }

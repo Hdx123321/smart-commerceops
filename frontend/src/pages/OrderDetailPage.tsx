@@ -7,11 +7,11 @@ import {
   ShoppingOutlined,
   TruckOutlined
 } from '@ant-design/icons';
-import { Alert, Button, Card, Descriptions, Empty, Form, Image, Input, Modal, Select, Space, Steps, Tag, Typography, message } from 'antd';
+import { Alert, Button, Card, Descriptions, Empty, Form, Image, Input, Modal, Rate, Select, Space, Steps, Tag, Typography, message } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useState } from 'react';
-import { apiErrorMessage, chatApi, orderApi, paymentApi } from '../api/client';
+import { apiErrorMessage, catalogApi, chatApi, orderApi, paymentApi } from '../api/client';
 import type { AfterSalesType, Order, OrderLine, UserProfile } from '../types';
 
 interface Props {
@@ -87,7 +87,9 @@ export default function OrderDetailPage({ user }: Props) {
   const queryClient = useQueryClient();
   const [messageApi, contextHolder] = message.useMessage();
   const [afterSalesOpen, setAfterSalesOpen] = useState(false);
+  const [reviewTarget, setReviewTarget] = useState<OrderLine | null>(null);
   const [afterSalesForm] = Form.useForm<AfterSalesFormValues>();
+  const [reviewForm] = Form.useForm<{ rating: number; comment?: string }>();
   const selectedAfterSalesType = Form.useWatch('type', afterSalesForm);
   const id = Number(orderId);
   const isOpsUser = user.role === 'MERCHANT' || user.role === 'ADMIN';
@@ -190,6 +192,25 @@ export default function OrderDetailPage({ user }: Props) {
     }),
     onSuccess: (conversation) => navigate(`/chat/${conversation.id}`),
     onError: (error) => messageApi.error(apiErrorMessage(error, 'Contact merchant failed'))
+  });
+
+  const createReview = useMutation({
+    mutationFn: (values: { rating: number; comment?: string }) => {
+      if (!order || !reviewTarget) throw new Error('No order item selected');
+      return catalogApi.createReview(reviewTarget.productId, {
+        orderId: order.id,
+        orderLineId: reviewTarget.id,
+        rating: values.rating,
+        comment: values.comment
+      });
+    },
+    onSuccess: () => {
+      setReviewTarget(null);
+      reviewForm.resetFields();
+      queryClient.invalidateQueries({ queryKey: ['product-reviews'] });
+      messageApi.success('Review submitted');
+    },
+    onError: (error) => messageApi.error(apiErrorMessage(error, 'Review failed'))
   });
 
   const reorder = useMutation({
@@ -384,6 +405,18 @@ export default function OrderDetailPage({ user }: Props) {
                         <div className="cart-product-info">
                           <Typography.Text strong>{line.productName}</Typography.Text>
                           <Typography.Text type="secondary">Unit price ${Number(line.unitPrice).toFixed(2)}</Typography.Text>
+                          {!isOpsUser && order.status === 'COMPLETED' && (
+                            <Button
+                              size="small"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                setReviewTarget(line);
+                                reviewForm.setFieldsValue({ rating: 5, comment: undefined });
+                              }}
+                            >
+                              Review
+                            </Button>
+                          )}
                         </div>
                       </Link>
                       <Typography.Text className="cart-quantity">x{line.quantity}</Typography.Text>
@@ -439,6 +472,24 @@ export default function OrderDetailPage({ user }: Props) {
           </Form.Item>
           <Form.Item name="contactMethod" label="联系方式">
             <Input prefix={<MessageOutlined />} placeholder="手机号、邮箱或其他联系方式" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={reviewTarget ? `Review ${reviewTarget.productName}` : 'Review item'}
+        open={!!reviewTarget}
+        okText="Submit review"
+        confirmLoading={createReview.isPending}
+        onCancel={() => setReviewTarget(null)}
+        onOk={() => reviewForm.submit()}
+      >
+        <Form form={reviewForm} layout="vertical" initialValues={{ rating: 5 }} onFinish={(values) => createReview.mutate(values)}>
+          <Form.Item name="rating" label="Rating" rules={[{ required: true }]}>
+            <Rate />
+          </Form.Item>
+          <Form.Item name="comment" label="Comment">
+            <Input.TextArea rows={4} maxLength={1000} />
           </Form.Item>
         </Form>
       </Modal>

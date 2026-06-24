@@ -32,18 +32,20 @@ public class CatalogClient {
     log.info("Fetching candidates: category={}, search={}, maxBudget={}, limit={}",
         request.category(), request.query(), request.maxBudget(), request.limit());
 
-    List<CatalogProduct> products = restClient.get()
+    PageResponse<CatalogProduct> response = restClient.get()
         .uri(uriBuilder -> uriBuilder
             .path("/products")
             .queryParam("category", request.category())
             .queryParam("search", request.query())
+            .queryParam("size", Math.max(maxCandidates, request.limit()))
             .build())
         .retrieve()
-        .body(new ParameterizedTypeReference<List<CatalogProduct>>() {});
+        .body(new ParameterizedTypeReference<PageResponse<CatalogProduct>>() {});
 
-    if (products == null) {
+    if (response == null || response.content() == null) {
       return List.of();
     }
+    List<CatalogProduct> products = response.content();
 
     // In-memory: filter by maxBudget
     if (request.maxBudget() != null) {
