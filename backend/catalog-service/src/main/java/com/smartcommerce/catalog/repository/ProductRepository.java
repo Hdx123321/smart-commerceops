@@ -16,6 +16,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
   @Query("""
       select p from Product p
       where p.active = true
+        and (:merchantId is null or p.merchantId = :merchantId)
         and (:category is null or p.category = :category)
         and (
           :search is null
@@ -24,7 +25,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
           or lower(coalesce(p.merchantName, '')) like lower(concat('%', :search, '%'))
         )
       """)
-  Page<Product> searchActive(@Param("category") String category, @Param("search") String search, Pageable pageable);
+  Page<Product> searchActive(@Param("merchantId") Long merchantId, @Param("category") String category, @Param("search") String search, Pageable pageable);
   boolean existsByNameIgnoreCase(String name);
   boolean existsByMerchantIdAndNameIgnoreCase(Long merchantId, String name);
 }

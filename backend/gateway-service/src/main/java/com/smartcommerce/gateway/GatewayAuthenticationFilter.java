@@ -77,6 +77,9 @@ public class GatewayAuthenticationFilter extends OncePerRequestFilter {
     if (path.equals("/auth/login") || path.equals("/auth/register")) {
       return true;
     }
+    if (HttpMethod.GET.matches(method) && (path.equals("/merchants") || path.matches("/merchants/\\d+"))) {
+      return true;
+    }
     if (path.startsWith("/images/")) {
       return true;
     }

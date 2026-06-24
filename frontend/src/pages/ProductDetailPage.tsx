@@ -1,12 +1,12 @@
 import { DeleteOutlined, MessageOutlined, PlusOutlined, ShoppingCartOutlined } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Card, Carousel, Col, Descriptions, Form, Image, Input, InputNumber, List, Rate, Row, Skeleton, Space, Statistic, Tag, Typography, Upload, message } from 'antd';
+import { Alert, Button, Card, Carousel, Col, Descriptions, Form, Image, Input, InputNumber, List, Modal, Rate, Row, Skeleton, Space, Statistic, Tag, Typography, Upload, message } from 'antd';
 
 import type { UploadFile } from 'antd';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { apiErrorMessage, catalogApi, chatApi, orderApi } from '../api/client';
-import type { ProductReviewRequest, UserProfile } from '../types';
+import type { ProductReview, UserProfile } from '../types';
 
 interface Props {
   user: UserProfile | null;
@@ -17,9 +17,10 @@ export default function ProductDetailPage({ user }: Props) {
   const navigate = useNavigate();
   const id = Number(productId);
   const queryClient = useQueryClient();
-  const [reviewForm] = Form.useForm<ProductReviewRequest>();
+  const [replyForm] = Form.useForm<{ reply: string }>();
   const [cartForm] = Form.useForm<{ quantity: number }>();
   const [messageApi, contextHolder] = message.useMessage();
+  const [replyTarget, setReplyTarget] = useState<ProductReview | null>(null);
   const productQuery = useQuery({ queryKey: ['product', id], queryFn: () => catalogApi.product(id), enabled: Number.isFinite(id) });
   const reviewsQuery = useQuery({ queryKey: ['product-reviews', id], queryFn: () => catalogApi.reviews(id), enabled: Number.isFinite(id) });
   const product = productQuery.data;
@@ -73,16 +74,18 @@ export default function ProductDetailPage({ user }: Props) {
     onError: (error) => messageApi.error(apiErrorMessage(error, 'Contact merchant failed'))
   });
 
-  const createReview = useMutation({
-    mutationFn: (values: ProductReviewRequest) => catalogApi.createReview(id, values),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['product', id] });
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-      queryClient.invalidateQueries({ queryKey: ['product-reviews', id] });
-      reviewForm.resetFields();
-      messageApi.success('Review submitted');
+  const replyToReview = useMutation({
+    mutationFn: (values: { reply: string }) => {
+      if (!replyTarget) throw new Error('No review selected');
+      return catalogApi.replyToReview(id, replyTarget.id, values);
     },
-    onError: (error) => messageApi.error(apiErrorMessage(error, 'Review failed'))
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['product-reviews', id] });
+      setReplyTarget(null);
+      replyForm.resetFields();
+      messageApi.success('Reply saved');
+    },
+    onError: (error) => messageApi.error(apiErrorMessage(error, 'Reply failed'))
   });
 
   if (!productQuery.isLoading && !product) {
@@ -212,7 +215,9 @@ export default function ProductDetailPage({ user }: Props) {
             {product && (
               <Space direction="vertical" className="full-width">
                 <Descriptions column={1} size="small">
-                  <Descriptions.Item label="Name">{product.merchantName}</Descriptions.Item>
+                  <Descriptions.Item label="Name">
+                    {product.merchantId ? <Link to={`/merchants/${product.merchantId}`}>{product.merchantName}</Link> : product.merchantName}
+                  </Descriptions.Item>
                   <Descriptions.Item label="Contact">{product.merchantContact || 'Not provided'}</Descriptions.Item>
                   <Descriptions.Item label="About">{product.merchantDescription || 'Platform managed merchant profile.'}</Descriptions.Item>
                 </Descriptions>
@@ -244,22 +249,7 @@ export default function ProductDetailPage({ user }: Props) {
       </Card>
 
       <Card title="Customer Reviews">
-        {canShop && (
-          <Form
-            form={reviewForm}
-            layout="vertical"
-            initialValues={{ rating: 5 }}
-            onFinish={(values) => createReview.mutate({ ...values, userId: user.id, username: user.username })}
-          >
-            <Form.Item name="rating" label="Rating" rules={[{ required: true }]}>
-              <Rate />
-            </Form.Item>
-            <Form.Item name="comment" label="Comment">
-              <Input.TextArea rows={3} maxLength={1000} />
-            </Form.Item>
-            <Button htmlType="submit" type="primary" loading={createReview.isPending}>Submit review</Button>
-          </Form>
-        )}
+        {canShop && <Alert type="info" showIcon className="stacked-alert" message="Only purchased items can be reviewed. Open a completed order and review from the order item row." />}
         <List
           loading={reviewsQuery.isLoading}
           dataSource={reviewsQuery.data ?? []}
@@ -268,12 +258,45 @@ export default function ProductDetailPage({ user }: Props) {
             <List.Item>
               <List.Item.Meta
                 title={<Space><Typography.Text>{review.username}</Typography.Text><Rate disabled value={review.rating} /></Space>}
-                description={review.comment || 'No comment'}
+                description={(
+                  <Space direction="vertical" size={8}>
+                    <Typography.Text>{review.comment || 'No comment'}</Typography.Text>
+                    {review.merchantReply && (
+                      <Alert type="success" showIcon message="Merchant reply" description={review.merchantReply} />
+                    )}
+                    {canManage && (
+                      <Button
+                        size="small"
+                        onClick={() => {
+                          setReplyTarget(review);
+                          replyForm.setFieldsValue({ reply: review.merchantReply });
+                        }}
+                      >
+                        {review.merchantReply ? 'Edit reply' : 'Reply'}
+                      </Button>
+                    )}
+                  </Space>
+                )}
               />
             </List.Item>
           )}
         />
       </Card>
+
+      <Modal
+        title="Reply to review"
+        open={!!replyTarget}
+        okText="Save reply"
+        confirmLoading={replyToReview.isPending}
+        onCancel={() => setReplyTarget(null)}
+        onOk={() => replyForm.submit()}
+      >
+        <Form form={replyForm} layout="vertical" onFinish={(values) => replyToReview.mutate(values)}>
+          <Form.Item name="reply" label="Merchant reply" rules={[{ required: true, max: 1000 }]}>
+            <Input.TextArea rows={4} maxLength={1000} />
+          </Form.Item>
+        </Form>
+      </Modal>
     </Space>
   );
 }

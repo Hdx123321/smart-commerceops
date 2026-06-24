@@ -89,14 +89,26 @@ export interface ProductReview {
   username: string;
   rating: number;
   comment?: string;
+  orderId?: number;
+  orderLineId?: number;
+  merchantReply?: string;
+  merchantRepliedAt?: string;
   createdAt: string;
 }
 
 export interface ProductReviewRequest {
-  userId: number;
-  username: string;
+  orderId: number;
+  orderLineId: number;
   rating: number;
   comment?: string;
+}
+
+export interface Merchant {
+  merchantId: number;
+  merchantName: string;
+  merchantDescription?: string;
+  merchantContact?: string;
+  merchantAddress?: string;
 }
 
 export interface CartItem {
@@ -112,6 +124,7 @@ export interface CartItem {
 }
 
 export interface OrderLine {
+  id: number;
   productId: number;
   productName: string;
   quantity: number;

@@ -12,7 +12,7 @@ spring:
           - id: identity
             uri: ${IDENTITY_SERVICE_URL:http://localhost:8092}
             predicates:
-              - Path=/auth/**
+              - Path=/auth/**,/merchants,/merchants/**
           - id: catalog-public
             uri: ${CATALOG_SERVICE_URL:http://localhost:8093}
             predicates:

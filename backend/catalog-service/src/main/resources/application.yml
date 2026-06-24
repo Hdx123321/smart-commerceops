@@ -25,6 +25,8 @@ spring:
 
 app:
   internal-token: ${PAYMENT_INTERNAL_TOKEN:dev-internal-payment-token}
+  order-service:
+    url: ${ORDER_SERVICE_URL:http://localhost:8094}
   upload:
     dir: ${APP_UPLOAD_DIR:./uploads}
   cache:

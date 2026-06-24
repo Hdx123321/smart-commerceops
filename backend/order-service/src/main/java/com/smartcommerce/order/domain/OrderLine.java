@@ -50,6 +50,7 @@ public class OrderLine {
   }
 
   public Long getId() { return id; }
+  public CommerceOrder getOrder() { return order; }
   public Long getProductId() { return productId; }
   public String getProductName() { return productName; }
   public int getQuantity() { return quantity; }

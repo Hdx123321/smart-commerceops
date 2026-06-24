@@ -13,7 +13,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AssistantDrawer from '../components/AssistantDrawer';
-import { apiErrorMessage, catalogApi } from '../api/client';
+import { apiErrorMessage, catalogApi, merchantApi } from '../api/client';
 
 import type { Product, ProductRequest, UserProfile } from '../types';
 
@@ -93,6 +93,12 @@ export default function ProductsPage({ user }: Props) {
       }
       return catalogApi.products({ category: categoryFilter, search: searchFilter, size: displayCount });
     }
+  });
+
+  const merchantSearchQuery = useQuery({
+    queryKey: ['merchant-search', searchFilter],
+    queryFn: () => merchantApi.merchants({ search: searchFilter, size: 6 }),
+    enabled: !!searchFilter?.trim() && !canManage
   });
 
   const createProductMutation = useMutation({
@@ -234,6 +240,34 @@ export default function ProductsPage({ user }: Props) {
       </div>
 
       <Space direction="vertical" size="large" className="page">
+        {!!searchFilter?.trim() && !canManage && (
+          <Card title="Stores">
+            <Row gutter={[16, 16]}>
+              {(merchantSearchQuery.data?.content ?? []).map((merchant) => (
+                <Col xs={24} md={12} lg={8} key={merchant.merchantId}>
+                  <Card size="small" className="merchant-result-card">
+                    <Space direction="vertical" size={8} className="full-width">
+                      <Typography.Title level={5} className="cart-total">{merchant.merchantName}</Typography.Title>
+                      <Typography.Paragraph ellipsis={{ rows: 2 }}>
+                        {merchant.merchantDescription || 'No store description yet.'}
+                      </Typography.Paragraph>
+                      <Typography.Text type="secondary">{merchant.merchantContact || 'Contact not provided'}</Typography.Text>
+                      <Button type="primary">
+                        <Link to={`/merchants/${merchant.merchantId}`}>View Store</Link>
+                      </Button>
+                    </Space>
+                  </Card>
+                </Col>
+              ))}
+              {!merchantSearchQuery.isLoading && (merchantSearchQuery.data?.content ?? []).length === 0 && (
+                <Col span={24}>
+                  <Typography.Text type="secondary">No matching stores.</Typography.Text>
+                </Col>
+              )}
+            </Row>
+          </Card>
+        )}
+
         {/* ── 产品卡片网格 ── */}
         <Row gutter={[16, 16]}>
         {displayedProducts.map((product: Product) => (
@@ -267,7 +301,9 @@ export default function ProductsPage({ user }: Props) {
                 <Typography.Paragraph ellipsis={{ rows: 2 }} className="product-card-desc">
                   {product.description || 'No description'}
                 </Typography.Paragraph>
-                <Typography.Text type="secondary" className="product-card-merchant">{product.merchantName}</Typography.Text>
+                <Typography.Text type="secondary" className="product-card-merchant">
+                  {product.merchantId ? <Link to={`/merchants/${product.merchantId}`}>{product.merchantName}</Link> : product.merchantName}
+                </Typography.Text>
                 <Space className="product-stats">
                   <div className="product-stat-item">
                     <Typography.Text type="secondary" className="product-stat-label">Price</Typography.Text>

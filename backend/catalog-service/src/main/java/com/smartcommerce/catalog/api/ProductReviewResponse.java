@@ -10,6 +10,10 @@ public record ProductReviewResponse(
     String username,
     int rating,
     String comment,
+    Long orderId,
+    Long orderLineId,
+    String merchantReply,
+    Instant merchantRepliedAt,
     Instant createdAt
 ) {
   public static ProductReviewResponse from(ProductReview review) {
@@ -20,6 +24,10 @@ public record ProductReviewResponse(
         review.getUsername(),
         review.getRating(),
         review.getComment(),
+        review.getOrderId(),
+        review.getOrderLineId(),
+        review.getMerchantReply(),
+        review.getMerchantRepliedAt(),
         review.getCreatedAt()
     );
   }

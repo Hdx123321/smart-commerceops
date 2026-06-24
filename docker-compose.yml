@@ -47,6 +47,7 @@ services:
       CATALOG_CACHE_TTL: 5m
       APP_UPLOAD_DIR: /app/uploads
       PAYMENT_INTERNAL_TOKEN: ${PAYMENT_INTERNAL_TOKEN:-dev-internal-payment-token}
+      ORDER_SERVICE_URL: http://order-service:8094
     depends_on:
       mysql:
         condition: service_healthy

@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 public record OrderLineResponse(
+    Long id,
     Long productId,
     String productName,
     int quantity,
@@ -15,6 +16,7 @@ public record OrderLineResponse(
 ) {
   public static OrderLineResponse from(OrderLine line) {
     return new OrderLineResponse(
+        line.getId(),
         line.getProductId(),
         line.getProductName(),
         line.getQuantity(),

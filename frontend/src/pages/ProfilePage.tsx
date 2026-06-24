@@ -40,7 +40,9 @@ export default function ProfilePage({ user, onProfileUpdated }: Props) {
       <div className="page-heading">
         <div>
           <Typography.Title level={2}>Profile</Typography.Title>
-          <Typography.Text type="secondary">Manage account, body profile, delivery address, and payment preference.</Typography.Text>
+          <Typography.Text type="secondary">
+            {user.role === 'MERCHANT' ? 'Manage your public store profile and contact details.' : 'Manage account, delivery address, and payment preference.'}
+          </Typography.Text>
         </div>
       </div>
 
@@ -57,49 +59,56 @@ export default function ProfilePage({ user, onProfileUpdated }: Props) {
                 <Input value={profileQuery.data.email} disabled />
               </Form.Item>
             </Col>
-            <Col xs={24} md={12}>
-              <Form.Item name="gender" label="Gender">
-                <Select
-                  allowClear
-                  options={[
-                    { value: 'Female', label: 'Female' },
-                    { value: 'Male', label: 'Male' },
-                    { value: 'Non-binary', label: 'Non-binary' },
-                    { value: 'Prefer not to say', label: 'Prefer not to say' }
-                  ]}
-                />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={4}>
-              <Form.Item name="heightCm" label="Height (cm)" rules={[{ type: 'number', min: 50, max: 260 }]}>
-                <InputNumber min={50} max={260} className="full-width" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={4}>
-              <Form.Item name="weightKg" label="Weight (kg)" rules={[{ type: 'number', min: 20, max: 350 }]}>
-                <InputNumber min={20} max={350} className="full-width" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={4}>
-              <Form.Item name="shoeSize" label="Shoe size" rules={[{ type: 'number', min: 1 }]}>
-                <InputNumber min={1} step={0.5} precision={1} className="full-width" />
-              </Form.Item>
-            </Col>
-            <Col xs={24}>
-              <Form.Item name="shippingAddress" label="Shipping address" rules={[{ max: 500 }]}>
-                <Input.TextArea rows={3} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Item name="phoneNumber" label="Phone number" rules={[{ max: 40 }]}>
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Item name="paymentMethod" label="Payment method" rules={[{ max: 120 }]}>
-                <Input placeholder="e.g. Card, PayNow, cash on delivery" />
-              </Form.Item>
-            </Col>
+            {user.role === 'CUSTOMER' && (
+              <>
+                <Col xs={24}>
+                  <Typography.Title level={4}>Customer Profile</Typography.Title>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item name="gender" label="Gender">
+                    <Select
+                      allowClear
+                      options={[
+                        { value: 'Female', label: 'Female' },
+                        { value: 'Male', label: 'Male' },
+                        { value: 'Non-binary', label: 'Non-binary' },
+                        { value: 'Prefer not to say', label: 'Prefer not to say' }
+                      ]}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={4}>
+                  <Form.Item name="heightCm" label="Height (cm)" rules={[{ type: 'number', min: 50, max: 260 }]}>
+                    <InputNumber min={50} max={260} className="full-width" />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={4}>
+                  <Form.Item name="weightKg" label="Weight (kg)" rules={[{ type: 'number', min: 20, max: 350 }]}>
+                    <InputNumber min={20} max={350} className="full-width" />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={4}>
+                  <Form.Item name="shoeSize" label="Shoe size" rules={[{ type: 'number', min: 1 }]}>
+                    <InputNumber min={1} step={0.5} precision={1} className="full-width" />
+                  </Form.Item>
+                </Col>
+                <Col xs={24}>
+                  <Form.Item name="shippingAddress" label="Shipping address" rules={[{ max: 500 }]}>
+                    <Input.TextArea rows={3} />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item name="phoneNumber" label="Phone number" rules={[{ max: 40 }]}>
+                    <Input />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item name="paymentMethod" label="Payment method" rules={[{ max: 120 }]}>
+                    <Input placeholder="e.g. Card, PayNow, cash on delivery" />
+                  </Form.Item>
+                </Col>
+              </>
+            )}
             {user.role === 'MERCHANT' && (
               <>
                 <Col xs={24}>
